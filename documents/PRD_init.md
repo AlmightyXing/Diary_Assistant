@@ -47,3 +47,10 @@
 
 ## 程序架构
 
+Diary_Assistant
+├── Backend/        # 后端
+├── Data/           # 数据储存（如个人日志、图标等）
+├── Frontend/       # 前端页面（后台组件部分）
+├── Desktop/        # 桌面组件
+├── Document/       # 项目文档
+└── README.md       # 项目说明文档
