@@ -1,0 +1,80 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Whitelist & Stats Test</title>
+</head>
+<body>
+    <h2>白名单应用列表</h2>
+    <ul id="whitelist"></ul>
+    <input type="text" id="new-app" placeholder="应用名称，如 Chrome">
+    <button onclick="addWhitelist()">添加白名单</button>
+
+    <h2>应用活跃统计</h2>
+    <table border="1">
+        <thead>
+            <tr><th>应用名称</th><th>活跃时间 (秒)</th></tr>
+        </thead>
+        <tbody id="stats"></tbody>
+    </table>
+
+    <script>
+        const API_BASE = "http://localhost:8000";
+
+        async function fetchWhitelist() {
+            const res = await fetch(API_BASE + "/whitelist");
+            const data = await res.json();
+            const list = document.getElementById("whitelist");
+            list.innerHTML = "";
+            data.whitelist.forEach(app => {
+                const li = document.createElement("li");
+                li.innerText = app + " ";
+                const btn = document.createElement("button");
+                btn.innerText = "删除";
+                btn.onclick = () => removeWhitelist(app);
+                li.appendChild(btn);
+                list.appendChild(li);
+            });
+        }
+
+        async function addWhitelist() {
+            const input = document.getElementById("new-app");
+            const app = input.value.trim();
+            if (app) {
+                await fetch(API_BASE + "/whitelist", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ app_name: app })
+                });
+                input.value = "";
+                fetchWhitelist();
+            }
+        }
+
+        async function removeWhitelist(app) {
+            await fetch(API_BASE + "/whitelist", {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ app_name: app })
+            });
+            fetchWhitelist();
+        }
+
+        async function fetchStats() {
+            const res = await fetch(API_BASE + "/stats");
+            const stats = await res.json();
+            const tbody = document.getElementById("stats");
+            tbody.innerHTML = "";
+            stats.forEach(stat => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = <td></td><td></td>;
+                tbody.appendChild(tr);
+            });
+        }
+
+        fetchWhitelist();
+        fetchStats();
+        setInterval(fetchStats, 1000);
+    </script>
+</body>
+</html>
