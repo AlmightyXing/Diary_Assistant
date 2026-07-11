@@ -5,10 +5,10 @@ import renderer from 'vite-plugin-electron-renderer'
 import { resolve } from 'path'
 
 export default defineConfig({
-  root: 'frontend',
+  root: '.',
   base: './',
   build: {
-    outDir: '../dist',
+    outDir: 'dist',
     emptyOutDir: true,
   },
   plugins: [
