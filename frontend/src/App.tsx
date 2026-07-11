@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react'
+import DiaryPanel from './DiaryPanel'
+
 
 declare global {
   interface Window {
@@ -35,7 +37,7 @@ interface Template {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'schedules' | 'templates'>('schedules');
+  const [activeTab, setActiveTab] = useState<'schedules' | 'templates' | 'diary'>('schedules');
   
   // Schedule state
   const [date, setDate] = useState<string>(new Date().isoString().split('T')[0]);
@@ -101,7 +103,7 @@ export default function App() {
   };
 
   const handleDeleteSchedule = async (id: string) => {
-    if (confirm('硭��覑删除这个日�#吗?')) {
+    if (confirm('硭��覑删除这个日�#吗?')) {
       await window.api.deleteSchedule(id);
       loadSchedules,date);
     }
@@ -147,7 +149,7 @@ export default function App() {
   };
 
   const handleDeleteTemplate = async (id: string) => {
-    if (confirm('硭��覑删除这个固定模板吗?（不影响已经修改裇的单日实侻）')) {
+    if (confirm('硭��覑删除这个固定模板吗?（不影响已经修改裇的单日实侻）')) {
       await window.api.deleteTemplate(id);
       loadTemplates();
     }
@@ -202,25 +204,29 @@ export default function App() {
         <button 
           style={{ marginRight: '1rem', fontWeight: activeTab === 'schedules' ? 'bold' : 'normal' }}
           onClick={() => setActiveTab('schedules')}
-        >日常日�#</button>
+        >日常日程</button>
         <button 
           style={{ fontWeight: activeTab === 'templates' ? 'bold' : 'normal' }}
           onClick={() => setActiveTab('templates')}
-        >固定日�#(模板)</button>
+        >固定日程(模板)</button>
+        <button 
+          style={{ fontWeight: activeTab === 'diary' ? 'bold' : 'normal', marginLeft: '1rem' }}
+          onClick={() => setActiveTab('diary')}
+        >日记生成</button>
       </nav>
 
       {activeTab === 'schedules' && (
         <>
           <header>
-            <h2>日�#管理 ({date})</h2>
+            <h2>日程管理 ({date})</h2>
             <div>
               <input type="date" value={date} onChange={e => setDate(e.target.value)} />
-              <button onClick={() => openScheduleModal()}>添加日�#</button>
+              <button onClick={() => openScheduleModal()}>添加日�#</button>
             </div>
           </header>
           
           <ul className="schedule-list">
-            {schedules.length === 0 ? <p>暢无日�#</p> : schedules.map(s => (
+            {schedules.length === 0 ? <p>暢无日�#</p> : schedules.map(s => (
               <li key={s.id} className="schedule-item">
                 <div>
                   <strong>{s.time}</strong> - {s.title}
@@ -240,7 +246,7 @@ export default function App() {
       {activeTab === 'templates' && (
         <>
           <header>
-            <h2>固定日�#模板</h2>
+            <h2>固定日�#模板</h2>
             <div>
               <button onClick={() => openTemplateModal()}>添加模板</button>
             </div>
@@ -264,11 +270,13 @@ export default function App() {
         </>
       )}
 
+      {activeTab === 'diary' && <DiaryPanel date={date} schedules={schedules} />}
+
       {/* Schedule Edit Modal */}
       {isScheduleModalOpen && (
         <div className="modal">
           <div className="modal-content">
-            <h3>{editingSchedule ? '编辑日�#' : '添加日�#'}</h3>
+            <h3>{editingSchedule ? '编辑日�#' : '添加日�#'}</h3>
             {editingSchedule && editingSchedule.templateId && (
               <div style={{marginBottom: '1rem', padding: '0.5rem', background: '#e9f5ff', borderRadius: '4px'}}>
                 <span style={{fontSize: '0.9em'}}>此日稣由固定模板生成。</span>
@@ -287,7 +295,7 @@ export default function App() {
               <input type="text" value={scheduleForm.title} onChange={e => setScheduleForm({...scheduleForm, title: e.target.value})} placeholder="输入标题..." />
             </div>
             <div className="form-group">
-              <label>�#述</label>
+              <label>�#述</label>
               <input type="text" value={scheduleForm.description} onChange={e => setScheduleForm({...scheduleForm, description: e.target.value})} placeholder="输入述..." />
             </div>
             <div style={{ marginTop: '1rem', textAlign: 'right' }}>
@@ -302,7 +310,7 @@ export default function App() {
       {isTemplateModalOpen && (
         <div className="modal">
           <div className="modal-content">
-            <h3>{editingTemplate ? '编辑&��板' : '添加模板'}</h3>
+            <h3>{editingTemplate ? '编辑&��板' : '添加模板'}</h3>
             <div className="form-group">
               <label>重 哇䧄则</label>
               <select 
@@ -347,11 +355,11 @@ export default function App() {
               <input type="time" value={templateForm.time} onChange={e => setTemplateForm({...templateForm, time: e.target.value})} />
             </div>
             <div className="form-group">
-              <label>�题</label>
+              <label>�题</label>
               <input type="text" value={templateForm.title} onChange={e => setTemplateForm({...templateForm, title: e.target.value})} placeholder="输入标题..." />
             </div>
             <div className="form-group">
-              <label>�#述</label>
+              <label>�#述</label>
               <input type="text" value={templateForm.description} onChange={e => setTemplateForm({...templateForm, description: e.target.value})} placeholder="输入述..." />
             </div>
             <div style={{ marginTop: '1rem', textAlign: 'right' }}>
