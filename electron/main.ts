@@ -4,16 +4,93 @@ import * as fs from 'fs/promises'
 import * as fsSync from 'fs'
 
 const dataPath = join(app.getPath('userData'), 'schedule_data.json')
+const templatesPath = join(app.getPath('userData'), 'schedule_templates.json')
 
-// Ensure data file exists
+// Ensure data files exist
 if (!fsSync.existsSync(dataPath)) {
   fsSync.writeFileSync(dataPath, JSON.stringify([]))
 }
+if (!fsSync.existsSync(templatesPath)) {
+  fsSync.writeFileSync(templatesPath, JSON.stringify([]))
+}
 
-async function getSchedules(date: string) {
-  const raw = await fs.readFile(dataPath, 'utf-8')
+// ---- Templates ----
+async function getTemplates() {
+  const raw = await fs.readFile(templatesPath, 'utf-8')
+  return JSON.parse(raw)
+}
+
+async function addTemplate(item: any) {
+  const raw = await fs.readFile(templatesPath, 'utf-8')
   const all = JSON.parse(raw)
-  return all.filter((s: any) => s.date === date)
+  item.id = 'tpl_' + Date.now().toString()
+  all.push(item)
+  await fs.writeFile(templatesPath, JSON.stringify(all, null, 2))
+  return item
+}
+
+async function updateTemplate(item: any) {
+  const raw = await fs.readFile(templatesPath, 'utf-8')
+  const all = JSON.parse(raw)
+  const index = all.findIndex((s: any) => s.id === item.id)
+  if (index !== -1) {
+    all[index] = { ...all[index], ...item }
+    await fs.writeFile(templatesPath, JSON.stringify(all, null, 2))
+    return all[index]
+  }
+  return null
+}
+
+async function deleteTemplate(id: string) {
+  const raw = await fs.readFile(templatesPath, 'utf-8')
+  let all = JSON.parse(raw)
+  all = all.filter((s: any) => s.id !== id)
+  await fs.writeFile(templatesPath, JSON.stringify(all, null, 2))
+  return true
+}
+
+// ---- Schedules ----
+async function getSchedules(date: string) {
+  const rawSchedules = await fs.readFile(dataPath, 'utf-8')
+  const allSchedules = JSON.parse(rawSchedules)
+  const schedulesForDate = allSchedules.filter((s: any) => s.date === date && !s.deleted)
+
+  const rawTemplates = await fs.readFile(templatesPath, 'utf-8')
+  const allTemplates = JSON.parse(rawTemplates)
+
+  const d = new Date(date)
+  const dayOfWeek = d.getDay() // 0 is Sunday, 1 is Monday...
+  const dateNum = d.getDate()
+
+  const generatedSchedules = []
+  
+  for (const tpl of allTemplates) {
+    let match = false
+    if (tpl.ruleType === 'daily') {
+      match = true
+    } else if (tpl.ruleType === 'weekly' && parseInt(tpl.ruleValue) === dayOfWeek) {
+      match = true
+    } else if (tpl.ruleType === 'monthly' && parseInt(tpl.ruleValue) === dateNum) {
+      match = true
+    }
+
+    if (match) {
+      const existing = allSchedules.find((s: any) => s.date === date && s.templateId === tpl.id)
+      if (!existing) {
+        generatedSchedules.push({
+          id: 'gen_' + tpl.id + '_' + date,
+          templateId: tpl.id,
+          date: date,
+          title: tpl.title,
+          description: tpl.description,
+          time: tpl.time,
+          isGenerated: true
+        })
+      }
+    }
+  }
+
+  return [...schedulesForDate, ...generatedSchedules].sort((a: any, b: any) => a.time.localeCompare(b.time))
 }
 
 async function addSchedule(item: any) {
@@ -29,10 +106,16 @@ async function updateSchedule(item: any) {
   const raw = await fs.readFile(dataPath, 'utf-8')
   const all = JSON.parse(raw)
   const index = all.findIndex((s: any) => s.id === item.id)
+  
   if (index !== -1) {
-    all[index] = { ...all[index], ...item }
+    all[index] = { ...all[index], ...item, isGenerated: false }
     await fs.writeFile(dataPath, JSON.stringify(all, null, 2))
     return all[index]
+  } else if (item.id && item.id.startsWith('gen_')) {
+    const newItem = { ...item, isGenerated: false }
+    all.push(newItem)
+    await fs.writeFile(dataPath, JSON.stringify(all, null, 2))
+    return newItem
   }
   return null
 }
@@ -40,7 +123,25 @@ async function updateSchedule(item: any) {
 async function deleteSchedule(id: string) {
   const raw = await fs.readFile(dataPath, 'utf-8')
   let all = JSON.parse(raw)
-  all = all.filter((s: any) => s.id !== id)
+  
+  const index = all.findIndex((s: any) => s.id === id)
+  if (index !== -1) {
+    if (all[index].templateId) {
+       all[index].deleted = true
+    } else {
+       all.splice(index, 1)
+    }
+  } else if (id.startsWith('gen_')) {
+    const parts = id.split('_')
+    const templateId = parts[1]
+    const date = parts.slice(2).join('_')
+    all.push({
+      id: id,
+      templateId: templateId,
+      date: date,
+      deleted: true
+    })
+  }
   await fs.writeFile(dataPath, JSON.stringify(all, null, 2))
   return true
 }
@@ -67,6 +168,11 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  ipcMain.handle('get-templates', getTemplates)
+  ipcMain.handle('add-template', (_, item) => addTemplate(item))
+  ipcMain.handle('update-template', (_, item) => updateTemplate(item))
+  ipcMain.handle('delete-template', (_, id) => deleteTemplate(id))
+
   ipcMain.handle('get-schedules', (_, date) => getSchedules(date))
   ipcMain.handle('add-schedule', (_, item) => addSchedule(item))
   ipcMain.handle('update-schedule', (_, item) => updateSchedule(item))
