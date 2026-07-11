@@ -11,6 +11,8 @@ trigger: always_on
     ```
     - [17:30] Finish the command from user.
     ```
+- When a project issue/task is mentioned for the first time, provide a brief description of its contents.
+- When recording the implementation of an issue, briefly describe the implementation method and technical details.
 
 ## Log Example
 
