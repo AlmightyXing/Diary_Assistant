@@ -26,6 +26,13 @@ def init_db():
             active_time_seconds INTEGER DEFAULT 0
         )
     ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS diaries (
+            date TEXT PRIMARY KEY,
+            content TEXT
+        )
+    ''')
     cursor.execute('SELECT COUNT(*) FROM whitelist')
     if cursor.fetchone()[0] == 0:
         default_apps = ['Code', 'Chrome', 'Notepad']
@@ -128,3 +135,76 @@ def remove_whitelist(item: WhitelistItem):
     conn.commit()
     conn.close()
     return {"status": "success", "app_name": item.app_name}
+
+import urlib.request
+import json
+import ssl
+
+class DiaryDraftRequest(BaseModel):
+    schedule_text: str
+    app_stats_text: str
+
+class DiarySaveRequest(BaseModel):
+    date: str
+    content: str
+
+@app.post("/generate-diary")
+def generate_diary(req: DiaryDraftRequest):
+    prompt = f"请根据以下日程和应用使用情况写一篇日记：
+【日稍】
+kreq.schedule_text}
+【应產使甠】
+{
+req.app_stats_text}"
+    
+    draft = f"【AI初稿】
+今天我完成了一些日稍，主要包括：
+{
+req.schedule_text}
+
+此外，我使用了一些应用程序：
+{rreq.app_stats_text}
+
+总的来说，这是充实的一天！"
+    
+    try:
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if api_key:
+            url = "https://api.openai.com/v1/chat/completions"
+            data = {
+                "model": "gpt-3.5-turbo",
+                "messages": [
+                    {"role": "system", "content": "you are a diary assistant."},
+                    {"role": "user", "content": prompt}
+                ]
+            }
+            req_bytes = json.dumps(data).encode('utf-8')
+            request = urlib.request.Request(url, data=req_bytes, headers:{"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"})
+            context = ssl._create_unverified_context()
+            with urlib.request.urlopen(request, context=context) as response:
+                resp_data = json.loads(response.read().decode('utf-8'))
+                draft = resp_data['choices'][0]['message']['content']
+    except Exception as e:
+        print(f"LLM API error: {e}")
+
+    return {"draft": draft}
+
+@app.post("/save-diary")
+def save_diary(req: DiarySaveRequest):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('INSERT OR REPLACE INTO diaries (date, content) VALUES (?, ?)', (req.date, req.content))
+    conn.commit()
+    conn.close()
+    return {"status": "success"}
+
+@app.get("/diary/{date}")
+def get_diary(date: str):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('SELECT content FROM diaries WHERE date = ?', (date,))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return {"content": row[0]}
+    return {"content": ""}
