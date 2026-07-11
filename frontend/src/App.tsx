@@ -163,7 +163,40 @@ export default function App() {
     return '洪矧规刖';
   };
 
+
+  // --- Health Tracker Logic ---
+  const [healthStatus, setHealthStatus] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchHealth = async () => {
+      try {
+        const res = await fetch('http://localhost:8000/health/status');
+        const data = await res.json();
+        setHealthStatus(data);
+      } catch (e) {
+        // Backend not running
+      }
+    };
+    fetchHealth();
+    const timer = setInterval(fetchHealth, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const handleHealthReset = async () => {
+    try {
+      await fetch('http://localhost:8000/health/reset', { method: 'POST' });
+    } catch(e) {}
+  };
+
+  const handleHealthNextStage = async () => {
+    try {
+      await fetch('http://localhost:8000/health/next_stage', { method: 'POST' });
+    } catch(e) {}
+  };
+  // ----------------------------
+
   return (
+
     <div className="container">
       <nav style={{ marginBottom: '1rem', borderBottom: '1px solid #ccc', paddingBottom: '0.5rem' }}>
         <button 
@@ -329,6 +362,20 @@ export default function App() {
         </div>
       )}
 
+
+      {/* Health Reminder Modal */}
+      {healthStatus && healthStatus.trigger_reminder && (
+        <div className="modal" style={{ zIndex: 9999, backgroundColor: 'rgba(255, 0, 0, 0.8)' }}>
+          <div className="modal-content" style={{ textAlign: 'center', padding: '2rem' }}>
+            <h1 style={{ color: 'red' }}>健康提醒</h1>
+            <p>您已经持续活跃了 {Math.floor(healthStatus.active_time / 60)} 分钟，请休息一下！</p>
+            <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'center', gap: '1rem' }}>
+              <button onClick={handleHealthReset} style={{ fontSize: '1.2rem', padding: '0.5rem 1rem' }}>重置计时</button>
+              <button onClick={handleHealthNextStage} style={{ fontSize: '1.2rem', padding: '0.5rem 1rem', backgroundColor: '#28a745', color: '#fff' }}>??重置计时</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
