@@ -310,9 +310,12 @@ export default function App() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: 'var(--bg-base)' }}>
       {/* 纯黑机能风标题栏 */}
       <div className="title-bar">
-        <div className="title-bar-brand">
-          <span className="brand-accent">//</span>
-          <span className="brand-text">日程助理</span>
+        <div className="title-bar-brand" style={{ display: 'flex', alignItems: 'center' }}>
+          <span className="brand-accent" style={{ marginRight: '0.5rem' }}>//</span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px', fontSize: '10px', lineHeight: 1, fontWeight: 900 }}>
+            <span>日</span><span>程</span>
+            <span>助</span><span>理</span>
+          </div>
         </div>
         <div className="title-bar-controls">
           <button onClick={() => window.ipcRenderer?.send('window-minimize')}>一</button>
