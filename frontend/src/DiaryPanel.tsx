@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { Card } from './components/Card';
+import { Button } from './components/Button';
 
 export default function DiaryPanel({ date, schedules }: { date: string, schedules: any[] }) {
   const [appStats, setAppStats] = useState<any[]>([]);
@@ -65,33 +67,36 @@ export default function DiaryPanel({ date, schedules }: { date: string, schedule
 
   return (
     <div>
-      <header>
-        <h2>生成日记 ({date})</h2>
-      </header>
+      <h2 className="tech-heading" style={{ fontSize: '3rem', marginBottom: '2rem' }}>日志生成</h2>
       
-      <div style={{ display: 'flex', gap: '2rem', marginBottom: '1rem', marginTop: '1rem' }}>
-        <div style={{ flex: 1, padding: '1rem', background: '#f9f9f9', borderRadius: '8px', border: '1px solid #ddd' }}>
-          <h4 style={{marginTop: 0}}>今日日程</h4>
-          <pre style={{whiteSpace: 'pre-wrap', fontFamily: 'inherit'}}>{scheduleText || '无'}</pre>
-        </div>
-        <div style={{ flex: 1, padding: '1rem', background: '#f9f9f9', borderRadius: '8px', border: '1px solid #ddd' }}>
-          <h4 style={{marginTop: 0}}>应用使用记录</h4>
-          <pre style={{whiteSpace: 'pre-wrap', fontFamily: 'inherit'}}>{appStatsText || '无'}</pre>
-        </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginBottom: '2rem' }}>
+        <Card title="原始日程">
+          <pre className="mono-text" style={{ whiteSpace: 'pre-wrap', color: 'var(--text-dim)', margin: 0, minHeight: '100px' }}>
+            {scheduleText || '// 暂无数据'}
+          </pre>
+        </Card>
+        <Card title="原始应用使用记录">
+          <pre className="mono-text" style={{ whiteSpace: 'pre-wrap', color: 'var(--text-dim)', margin: 0, minHeight: '100px' }}>
+            {appStatsText || '// 暂无数据'}
+          </pre>
+        </Card>
       </div>
 
-      <div style={{ marginBottom: '1rem' }}>
-        <button onClick={() => setIsConfirmOpen(true)} disabled={isGenerating}>
-          {isGenerating ? '生成中...' : (savedDiary ? '重新生成' : '生成日记初稿')}
-        </button>
+      <div style={{ marginBottom: '2rem' }}>
+        <Button variant="primary" onClick={() => setIsConfirmOpen(true)} disabled={isGenerating}>
+          {isGenerating ? '[ 处理中... ]' : (savedDiary ? '[ 重新生成 ]' : '[ 生成草稿 ]')}
+        </Button>
         {isConfirmOpen && (
-          <div className="modal">
-            <div className="modal-content">
-              <h3>风险提示</h3>
-              <p>即将把您的日程和应用使用记录发送至大语言模型API，这可能存在隐私风险，是否继续？</p>
-              <div style={{ marginTop: '1rem', textAlign: 'right' }}>
-                <button onClick={() => setIsConfirmOpen(false)} style={{ background: '#ccc', color: '#333', marginRight: '1rem' }}>取消</button>
-                <button onClick={generateDraft} style={{ background: '#ff4d4f', color: '#fff' }}>确认上传并生成</button>
+          <div className="modal-overlay">
+            <div className="modal-content" style={{ borderColor: 'var(--accent-red)', boxShadow: '8px 8px 0px var(--accent-red)' }}>
+              <h3 className="tech-heading" style={{ color: 'var(--accent-red)', marginBottom: '1rem' }}>隐私警告</h3>
+              <p className="mono-text" style={{ marginBottom: '2rem', lineHeight: '1.5' }}>
+                您的日程和应用使用数据将被发送到 LLM API。<br/>
+                是否继续？
+              </p>
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <Button variant="secondary" onClick={() => setIsConfirmOpen(false)} style={{ flex: 1 }}>中止</Button>
+                <Button variant="danger" onClick={generateDraft} style={{ flex: 1 }}>确认</Button>
               </div>
             </div>
           </div>
@@ -99,17 +104,26 @@ export default function DiaryPanel({ date, schedules }: { date: string, schedule
       </div>
 
       {draft && (
-        <div style={{ marginTop: '1rem' }}>
-          <h4>编辑日记</h4>
+        <Card title="编辑终端">
           <textarea 
-            style={{ width: '100%', height: '300px', padding: '1rem', fontFamily: 'inherit', boxSizing: 'border-box', border: '1px solid #ccc', borderRadius: '4px' }}
+            className="mono-text"
+            style={{ 
+              width: '100%', 
+              height: '300px', 
+              resize: 'vertical',
+              backgroundColor: 'var(--bg-panel)',
+              color: 'var(--text-main)',
+              border: '1px solid var(--border-color)',
+              padding: '1rem',
+              boxSizing: 'border-box'
+            }}
             value={draft}
             onChange={e => setDraft(e.target.value)}
           />
-          <div style={{ marginTop: '1rem', textAlign: 'right' }}>
-            <button onClick={saveDiary}>保存定稿</button>
+          <div style={{ marginTop: '1.5rem', textAlign: 'right' }}>
+            <Button variant="primary" onClick={saveDiary}>[ 保存最终版 ]</Button>
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );

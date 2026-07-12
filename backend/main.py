@@ -3,11 +3,21 @@ import win32gui
 import win32api
 import threading
 import sqlite3
+import os
+import json
+import ssl
+import urllib.request
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
-import os
+
+try:
+    from win10toast import ToastNotifier
+    toaster = ToastNotifier()
+except ImportError:
+    toaster = None
+    print("win10toast not installed")
 
 DB_FILE = os.path.join(os.path.dirname(__file__), 'stats.db')
 
@@ -27,7 +37,6 @@ def init_db():
             active_time_seconds INTEGER DEFAULT 0
         )
     ''')
-
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS diaries (
             date TEXT PRIMARY KEY,
@@ -53,27 +62,47 @@ def get_active_window_title():
 
 class HealthTracker:
     def __init__(self):
-        self.active_time = 0.0
-        self.limit = 45 * 60  # 45 minutes of focus
         self.idle_threshold = 5 * 60 * 1000  # 5 minutes in ms
-        self.stage = "focus"
-        self.trigger_reminder = False
+        self.sedentary_total = 45 * 60       # 45 minutes
+        self.exercise_total = 5 * 60         # 5 minutes
+        self.eye_care_total = 20 * 60        # 20 minutes
         
-    def reset(self):
-        self.active_time = 0.0
-        self.trigger_reminder = False
+        self.phase = 'sedentary' # 'sedentary' or 'exercise'
+        self.sedentary_left = self.sedentary_total
+        self.eye_care_left = self.eye_care_total
+        self.is_suspended = False
+
+    def tick(self, dt):
+        idle_time_ms = win32api.GetTickCount() - win32api.GetLastInputInfo()
+        if idle_time_ms >= self.idle_threshold:
+            self.is_suspended = True
+            return
         
-    def next_stage(self):
-        if self.stage == "focus":
-            self.stage = "rest"
-            self.active_time = 0.0
-            self.limit = 5 * 60  # 5 minutes rest
-            self.trigger_reminder = False
+        self.is_suspended = False
+        
+        # Decrement timers but stop at 0
+        if self.sedentary_left > 0:
+            self.sedentary_left = max(0, self.sedentary_left - dt)
+        
+        if self.eye_care_left > 0:
+            self.eye_care_left = max(0, self.eye_care_left - dt)
+
+    def refresh_sedentary(self):
+        if self.phase == 'sedentary':
+            self.sedentary_left = self.sedentary_total
         else:
-            self.stage = "focus"
-            self.active_time = 0.0
-            self.limit = 45 * 60  # 45 minutes focus
-            self.trigger_reminder = False
+            self.sedentary_left = self.exercise_total
+
+    def next_phase_sedentary(self):
+        if self.phase == 'sedentary':
+            self.phase = 'exercise'
+            self.sedentary_left = self.exercise_total
+        else:
+            self.phase = 'sedentary'
+            self.sedentary_left = self.sedentary_total
+
+    def refresh_eye_care(self):
+        self.eye_care_left = self.eye_care_total
 
 health_tracker = HealthTracker()
 
@@ -84,14 +113,8 @@ def tracking_loop():
         dt = now - last_checked
         last_checked = now
         
-        # Health tracking logic
         try:
-            idle_time_ms = win32api.GetTickCount() - win32api.GetLastInputInfo()
-            if idle_time_ms < health_tracker.idle_threshold:
-                if not health_tracker.trigger_reminder:
-                    health_tracker.active_time += dt
-                    if health_tracker.active_time >= health_tracker.limit:
-                        health_tracker.trigger_reminder = True
+            health_tracker.tick(dt)
         except Exception as e:
             print(f"Error in health tracking: {e}")
 
@@ -115,7 +138,7 @@ def tracking_loop():
                     conn.commit()
                 conn.close()
             except Exception as e:
-                print(f"Error in tracking loop: {e}")
+                pass
             
         time.sleep(1)
 
@@ -147,6 +170,15 @@ def get_stats():
     stats = [{"app_name": row[0], "active_time_seconds": row[1]} for row in cursor.fetchall()]
     conn.close()
     return stats
+
+@app.post("/reset-stats")
+def reset_stats():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM app_stats')
+    conn.commit()
+    conn.close()
+    return {"status": "success"}
 
 @app.get("/whitelist")
 def get_whitelist():
@@ -182,26 +214,33 @@ def remove_whitelist(item: WhitelistItem):
 @app.get("/health/status")
 def get_health_status():
     return {
-        "stage": health_tracker.stage,
-        "active_time": health_tracker.active_time,
-        "limit": health_tracker.limit,
-        "trigger_reminder": health_tracker.trigger_reminder,
-        "is_suspended": (win32api.GetTickCount() - win32api.GetLastInputInfo()) >= health_tracker.idle_threshold
+        "is_suspended": health_tracker.is_suspended,
+        "sedentary": {
+            "phase": health_tracker.phase,
+            "time_left": int(health_tracker.sedentary_left),
+            "total": health_tracker.exercise_total if health_tracker.phase == 'exercise' else health_tracker.sedentary_total
+        },
+        "eye_care": {
+            "time_left": int(health_tracker.eye_care_left),
+            "total": health_tracker.eye_care_total
+        }
     }
 
-@app.post("/health/reset")
-def reset_health():
-    health_tracker.reset()
-    return {"status": "success"}
+class HealthControlRequest(BaseModel):
+    type: str # 'sedentary' or 'eye_care'
+    action: str # 'refresh' or 'next_phase'
 
-@app.post("/health/next_stage")
-def next_health_stage():
-    health_tracker.next_stage()
+@app.post("/health/control")
+def control_health(req: HealthControlRequest):
+    if req.type == 'sedentary':
+        if req.action == 'refresh':
+            health_tracker.refresh_sedentary()
+        elif req.action == 'next_phase':
+            health_tracker.next_phase_sedentary()
+    elif req.type == 'eye_care':
+        if req.action == 'refresh':
+            health_tracker.refresh_eye_care()
     return {"status": "success"}
-
-import urllib.request
-import json
-import ssl
 
 class DiaryDraftRequest(BaseModel):
     schedule_text: str
@@ -214,9 +253,7 @@ class DiarySaveRequest(BaseModel):
 @app.post("/generate-diary")
 def generate_diary(req: DiaryDraftRequest):
     prompt = f"请根据以下日程和应用使用情况写一篇日记：\n【日程】\n{req.schedule_text}\n【应用记录】\n{req.app_stats_text}"
-    
     draft = f"【AI初稿】\n今天我完成了一些日程，主要包括：\n{req.schedule_text}\n\n此外，我使用了一些应用程序：\n{req.app_stats_text}\n\n总的来说，这是充实的一天！"
-    
     try:
         api_key = os.environ.get("OPENAI_API_KEY")
         if api_key:
@@ -236,7 +273,6 @@ def generate_diary(req: DiaryDraftRequest):
                 draft = resp_data['choices'][0]['message']['content']
     except Exception as e:
         print(f"LLM API error: {e}")
-
     return {"draft": draft}
 
 @app.post("/save-diary")
@@ -258,3 +294,12 @@ def get_diary(date: str):
     if row:
         return {"content": row[0]}
     return {"content": ""}
+
+@app.get("/diaries/dates")
+def get_diary_dates():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('SELECT date FROM diaries')
+    dates = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    return {"dates": dates}

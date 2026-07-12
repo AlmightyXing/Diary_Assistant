@@ -152,6 +152,7 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1024,
     height: 768,
+    frame: false,
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -177,6 +178,18 @@ app.whenReady().then(() => {
   ipcMain.handle('add-schedule', (_, item) => addSchedule(item))
   ipcMain.handle('update-schedule', (_, item) => updateSchedule(item))
   ipcMain.handle('delete-schedule', (_, id) => deleteSchedule(id))
+
+  ipcMain.on('window-minimize', (event) => {
+    const webContents = event.sender
+    const win = BrowserWindow.fromWebContents(webContents)
+    win?.minimize()
+  })
+  
+  ipcMain.on('window-close', (event) => {
+    const webContents = event.sender
+    const win = BrowserWindow.fromWebContents(webContents)
+    win?.close()
+  })
 
   createWindow()
 
