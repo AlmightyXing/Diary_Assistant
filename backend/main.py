@@ -41,6 +41,12 @@ def init_db():
             content TEXT
         )
     ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    ''')
     cursor.execute('SELECT COUNT(*) FROM whitelist')
     if cursor.fetchone()[0] == 0:
         default_apps = ['Code', 'Chrome', 'Notepad']
@@ -65,10 +71,44 @@ class HealthTracker:
         self.exercise_duration = 5 * 60
         self.eye_care_total = 20 * 60
         
+        self.load_settings()
+        
         self.phase = 'sedentary' # 'sedentary' or 'exercise'
         self.sedentary_left = self.sedentary_duration
         self.eye_care_left = self.eye_care_total
         self.is_suspended = False
+
+    def load_settings(self):
+        try:
+            conn = sqlite3.connect(DB_FILE)
+            cursor = conn.cursor()
+            for key, default_val in [
+                ('sedentary_duration', 45 * 60),
+                ('exercise_duration', 5 * 60),
+                ('eye_care_total', 20 * 60)
+            ]:
+                cursor.execute('SELECT value FROM settings WHERE key = ?', (key,))
+                row = cursor.fetchone()
+                if row:
+                    setattr(self, key, int(row[0]))
+                else:
+                    setattr(self, key, default_val)
+            conn.close()
+        except Exception as e:
+            print(f"Error loading settings: {e}")
+
+    def update_settings(self, sedentary_minutes, exercise_minutes, eye_care_minutes):
+        self.sedentary_duration = sedentary_minutes * 60
+        self.exercise_duration = exercise_minutes * 60
+        self.eye_care_total = eye_care_minutes * 60
+        
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute('REPLACE INTO settings (key, value) VALUES (?, ?)', ('sedentary_duration', str(self.sedentary_duration)))
+        cursor.execute('REPLACE INTO settings (key, value) VALUES (?, ?)', ('exercise_duration', str(self.exercise_duration)))
+        cursor.execute('REPLACE INTO settings (key, value) VALUES (?, ?)', ('eye_care_total', str(self.eye_care_total)))
+        conn.commit()
+        conn.close()
 
     def tick(self, dt):
         idle_time_ms = win32api.GetTickCount() - win32api.GetLastInputInfo()
@@ -80,8 +120,8 @@ class HealthTracker:
         
         if self.sedentary_left > 0:
             self.sedentary_left -= dt
-            if self.sedentary_left < 0:
-                self.sedentary_left = 0
+            if self.sedentary_left <= 0:
+                self.next_phase()
                 
         if self.eye_care_left > 0:
             self.eye_care_left -= dt
@@ -102,6 +142,7 @@ class HealthTracker:
             self.phase = 'sedentary'
             self.sedentary_left = self.sedentary_duration
 
+init_db()
 health_tracker = HealthTracker()
 
 def tracking_loop():
@@ -142,7 +183,6 @@ def tracking_loop():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
     tracker_thread = threading.Thread(target=tracking_loop, daemon=True)
     tracker_thread.start()
     yield
@@ -250,6 +290,28 @@ def refresh_health(req: TimerActionReq):
 @app.post("/health/next-phase")
 def next_health_phase():
     health_tracker.next_phase()
+    return {"status": "success"}
+
+class HealthConfigReq(BaseModel):
+    sedentary_minutes: int
+    exercise_minutes: int
+    eye_care_minutes: int
+
+@app.get("/health/config")
+def get_health_config():
+    return {
+        "sedentary_minutes": health_tracker.sedentary_duration // 60,
+        "exercise_minutes": health_tracker.exercise_duration // 60,
+        "eye_care_minutes": health_tracker.eye_care_total // 60
+    }
+
+@app.post("/health/config")
+def update_health_config(req: HealthConfigReq):
+    health_tracker.update_settings(req.sedentary_minutes, req.exercise_minutes, req.eye_care_minutes)
+    # Also refresh timers if we want changes to reflect immediately, or just let them tick down.
+    # We will refresh them to reflect new settings immediately.
+    health_tracker.refresh('sedentary')
+    health_tracker.refresh('eye_care')
     return {"status": "success"}
 
 class DiaryDraftRequest(BaseModel):

@@ -3,6 +3,9 @@ import { join } from 'path'
 import * as fs from 'fs/promises'
 import * as fsSync from 'fs'
 
+// 强制设置一个全新的 AppUserModelId，绕过之前的通知拦截
+app.setAppUserModelId('DiaryAs')
+
 const dataPath = join(app.getPath('userData'), 'schedule_data.json')
 const templatesPath = join(app.getPath('userData'), 'schedule_templates.json')
 
@@ -172,7 +175,7 @@ function createWindow() {
 
   if (process.env.VITE_DEV_SERVER_URL) {
     win.loadURL(process.env.VITE_DEV_SERVER_URL)
-    win.webContents.openDevTools()
+    // win.webContents.openDevTools() // 注释掉，避免每次启动都弹出开发者工具并报 Autofill.enable 错误
   } else {
     win.loadFile(join(__dirname, '../dist/index.html'))
   }
