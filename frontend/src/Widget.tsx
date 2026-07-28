@@ -59,7 +59,7 @@ export default function Widget() {
           const nowStr = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
           const upcoming = schedules.find((s: any) => s.time >= nowStr && !s.is_completed);
           setNextSchedule(upcoming || null);
-        } catch (e) {}
+        } catch (e) { }
       }
       timer = setTimeout(fetchSchedule, 10000);
     };
@@ -82,8 +82,8 @@ export default function Widget() {
 
   return (
     <div style={{
-      width: '100vw',
-      height: '100vh',
+      width: '80vw',
+      height: '80vh',
       display: 'flex',
       flexDirection: 'column',
       boxSizing: 'border-box',
@@ -95,45 +95,45 @@ export default function Widget() {
       overflow: 'hidden',
       border: '1px solid rgba(255, 255, 255, 0.1)',
     } as any}>
-      <div style={{ 
-        textAlign: 'center', fontSize: '14px', fontWeight: 'bold', 
-        padding: '8px', letterSpacing: '2px', color: '#ccc',
-        backgroundColor: 'rgba(0, 0, 0, 0.8)'
+      <div style={{
+        textAlign: 'center', fontSize: '14px', fontWeight: 'bold',
+        padding: '8px', letterSpacing: '1px', color: '#ccc',
+        backgroundColor: 'rgba(0, 0, 0, 0.7)'
       }}>
-        STATUS
+        HEALTHCYCLE
       </div>
 
-      <div style={{ 
-        display: 'flex', flexDirection: 'column', gap: '12px', flex: 1, 
+      <div style={{
+        display: 'flex', flexDirection: 'column', gap: '12px', flex: 1,
         justifyContent: 'center', padding: '16px',
         backgroundColor: 'rgba(0, 0, 0, 0.4)'
       }}>
         {components.includes('schedules') && (
-          <div 
+          <div
             onClick={() => wakeUp('schedules')}
             style={{ WebkitAppRegion: 'no-drag', cursor: 'pointer', display: 'flex', flexDirection: 'column', position: 'relative' } as any}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: '12px', color: '#aaa', fontWeight: 'bold' }}>NEXT SCHEDULE</div>
+              <div style={{ fontSize: '12px', color: '#ffffffff', fontWeight: 'bold' }}>NEXT SCHEDULE</div>
               <div style={{ fontSize: '12px', color: '#e0e0e0', fontWeight: 'bold' }}>
                 {nextSchedule ? nextSchedule.time : '--:--'}
               </div>
             </div>
             {/* Fake progress bar track for schedule to match layout */}
             <div style={{ marginTop: '4px', height: '2px', backgroundColor: 'rgba(255,255,255,0.1)', width: '100%' }}>
-               <div style={{ height: '100%', backgroundColor: 'var(--accent-yellow, #e5a910)', width: nextSchedule ? '100%' : '0%' }} />
+              <div style={{ height: '100%', backgroundColor: 'var(--accent-yellow, #e5a910)', width: nextSchedule ? '100%' : '0%' }} />
             </div>
           </div>
         )}
 
         {components.includes('health') && health && (
           <>
-            <div 
+            <div
               onClick={() => wakeUp('health')}
               style={{ WebkitAppRegion: 'no-drag', cursor: 'pointer', display: 'flex', flexDirection: 'column', position: 'relative' } as any}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontSize: '12px', color: '#aaa', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                <div style={{ fontSize: '12px', color: '#ffffffff', fontWeight: 'bold', textTransform: 'uppercase' }}>
                   {health.sedentary.phase === 'sedentary' ? 'Sedentary' : 'Exercise'}
                 </div>
                 <div style={{ fontSize: '12px', color: '#e0e0e0', fontWeight: 'bold' }}>
@@ -145,12 +145,12 @@ export default function Widget() {
               </div>
             </div>
 
-            <div 
+            <div
               onClick={() => wakeUp('health')}
               style={{ WebkitAppRegion: 'no-drag', cursor: 'pointer', display: 'flex', flexDirection: 'column', position: 'relative' } as any}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontSize: '12px', color: '#aaa', fontWeight: 'bold', textTransform: 'uppercase' }}>Eye Care</div>
+                <div style={{ fontSize: '12px', color: '#ffffffff', fontWeight: 'bold', textTransform: 'uppercase' }}>Eye Care</div>
                 <div style={{ fontSize: '12px', color: '#e0e0e0', fontWeight: 'bold' }}>
                   {formatTime(health.eye_care.time_left)}
                 </div>
