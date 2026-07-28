@@ -148,6 +148,41 @@ async function deleteSchedule(id) {
   return true;
 }
 let win = null;
+let widgetWin = null;
+function createWidgetWindow() {
+  if (widgetWin) return;
+  widgetWin = new electron.BrowserWindow({
+    width: 250,
+    height: 150,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: false,
+    skipTaskbar: true,
+    resizable: false,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  });
+  const primaryDisplay = electron.screen.getPrimaryDisplay();
+  const { width } = primaryDisplay.workAreaSize;
+  widgetWin.setPosition(width - 260, 20);
+  if (process.env.VITE_DEV_SERVER_URL) {
+    widgetWin.loadURL(process.env.VITE_DEV_SERVER_URL + "#/widget");
+  } else {
+    widgetWin.loadFile(path.join(__dirname, "../dist/index.html"), { hash: "widget" });
+  }
+  widgetWin.on("closed", () => {
+    widgetWin = null;
+  });
+  widgetWin.on("focus", () => {
+    widgetWin == null ? void 0 : widgetWin.setAlwaysOnTop(true);
+  });
+  widgetWin.on("blur", () => {
+    widgetWin == null ? void 0 : widgetWin.setAlwaysOnTop(false);
+  });
+}
 async function getScheduleDates() {
   const rawSchedules = await fs__namespace.readFile(dataPath, "utf-8");
   const allSchedules = JSON.parse(rawSchedules);
@@ -188,8 +223,41 @@ electron.app.whenReady().then(() => {
   });
   electron.ipcMain.on("window-close", (event) => {
     const webContents = event.sender;
-    const win2 = electron.BrowserWindow.fromWebContents(webContents);
-    win2 == null ? void 0 : win2.close();
+    const currentWin = electron.BrowserWindow.fromWebContents(webContents);
+    currentWin == null ? void 0 : currentWin.close();
+  });
+  electron.ipcMain.on("wake-up-main", (_, tab) => {
+    if (win && !win.isDestroyed()) {
+      if (win.isMinimized()) win.restore();
+      win.show();
+      win.focus();
+      win.webContents.send("navigate-to", tab);
+    } else {
+      createWindow();
+      if (win) {
+        win.webContents.once("did-finish-load", () => {
+          setTimeout(() => {
+            if (win && !win.isDestroyed()) {
+              win.webContents.send("navigate-to", tab);
+            }
+          }, 500);
+        });
+      }
+    }
+  });
+  electron.ipcMain.on("toggle-widget", (_, enabled) => {
+    if (enabled) {
+      createWidgetWindow();
+    } else {
+      if (widgetWin) {
+        widgetWin.close();
+      }
+    }
+  });
+  electron.ipcMain.on("set-widget-click-through", (_, through) => {
+    if (widgetWin) {
+      widgetWin.setIgnoreMouseEvents(through, { forward: true });
+    }
   });
   createWindow();
   electron.app.on("activate", () => {

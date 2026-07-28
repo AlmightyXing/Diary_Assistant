@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, screen } from 'electron'
 import { join } from 'path'
 import * as fs from 'fs/promises'
 import * as fsSync from 'fs'
@@ -153,6 +153,47 @@ async function deleteSchedule(id: string) {
 }
 
 let win: BrowserWindow | null = null
+let widgetWin: BrowserWindow | null = null
+
+function createWidgetWindow() {
+  if (widgetWin) return;
+  widgetWin = new BrowserWindow({
+    width: 250,
+    height: 150,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: false,
+    skipTaskbar: true,
+    resizable: false,
+    webPreferences: {
+      preload: join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+    }
+  });
+
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width } = primaryDisplay.workAreaSize;
+  widgetWin.setPosition(width - 260, 20);
+
+  if (process.env.VITE_DEV_SERVER_URL) {
+    widgetWin.loadURL(process.env.VITE_DEV_SERVER_URL + '#/widget');
+  } else {
+    widgetWin.loadFile(join(__dirname, '../dist/index.html'), { hash: 'widget' });
+  }
+
+  widgetWin.on('closed', () => {
+    widgetWin = null;
+  });
+
+  widgetWin.on('focus', () => {
+    widgetWin?.setAlwaysOnTop(true);
+  });
+
+  widgetWin.on('blur', () => {
+    widgetWin?.setAlwaysOnTop(false);
+  });
+}
 
 async function getScheduleDates() {
   const rawSchedules = await fs.readFile(dataPath, 'utf-8')
@@ -201,9 +242,45 @@ app.whenReady().then(() => {
   
   ipcMain.on('window-close', (event) => {
     const webContents = event.sender
-    const win = BrowserWindow.fromWebContents(webContents)
-    win?.close()
+    const currentWin = BrowserWindow.fromWebContents(webContents)
+    currentWin?.close()
   })
+
+  ipcMain.on('wake-up-main', (_, tab) => {
+    if (win && !win.isDestroyed()) {
+      if (win.isMinimized()) win.restore();
+      win.show();
+      win.focus();
+      win.webContents.send('navigate-to', tab);
+    } else {
+      createWindow();
+      if (win) {
+        win.webContents.once('did-finish-load', () => {
+          setTimeout(() => {
+            if (win && !win.isDestroyed()) {
+              win.webContents.send('navigate-to', tab);
+            }
+          }, 500);
+        });
+      }
+    }
+  });
+
+  ipcMain.on('toggle-widget', (_, enabled) => {
+    if (enabled) {
+      createWidgetWindow();
+    } else {
+      if (widgetWin) {
+        widgetWin.close();
+      }
+    }
+  });
+
+  ipcMain.on('set-widget-click-through', (_, through) => {
+    if (widgetWin) {
+      widgetWin.setIgnoreMouseEvents(through, { forward: true });
+    }
+  });
 
   createWindow()
 

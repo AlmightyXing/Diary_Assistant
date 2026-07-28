@@ -134,6 +134,61 @@ function AutoUploadToggle({ showConfirm }: { showConfirm: (msg: string, onConfir
   );
 }
 
+function WidgetSettings() {
+  const [enabled, setEnabled] = useState(() => localStorage.getItem('widget_enabled') === 'true');
+  const [clickThrough, setClickThrough] = useState(() => localStorage.getItem('widget_click_through') === 'true');
+  const [comps, setComps] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('widget_components') || '["health", "schedules"]');
+    } catch {
+      return ["health", "schedules"];
+    }
+  });
+
+  const toggleEnabled = (val: boolean) => {
+    setEnabled(val);
+    localStorage.setItem('widget_enabled', String(val));
+    window.api.toggleWidget(val);
+  };
+
+  const toggleClickThrough = (val: boolean) => {
+    setClickThrough(val);
+    localStorage.setItem('widget_click_through', String(val));
+    window.api.setWidgetClickThrough(val);
+  };
+
+  const toggleComp = (comp: string, checked: boolean) => {
+    const next = checked ? [...comps, comp] : comps.filter(c => c !== comp);
+    setComps(next);
+    localStorage.setItem('widget_components', JSON.stringify(next));
+    window.dispatchEvent(new Event('storage'));
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 'bold' }}>
+        <input type="checkbox" checked={enabled} onChange={e => toggleEnabled(e.target.checked)} style={{ width: '20px', height: '20px' }} />
+        开启桌面悬浮组件
+      </label>
+      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: enabled ? 'inherit' : 'var(--text-dim)' }}>
+        <input type="checkbox" checked={clickThrough} onChange={e => toggleClickThrough(e.target.checked)} disabled={!enabled} />
+        允许鼠标点击穿透 (开启后组件将无法被点击或拖动)
+      </label>
+      <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.5rem', opacity: enabled ? 1 : 0.5 }}>
+        <span style={{ color: 'var(--text-dim)' }}>显示模块:</span>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+          <input type="checkbox" checked={comps.includes('schedules')} onChange={e => toggleComp('schedules', e.target.checked)} disabled={!enabled} />
+          今日日程
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+          <input type="checkbox" checked={comps.includes('health')} onChange={e => toggleComp('health', e.target.checked)} disabled={!enabled} />
+          健康倒计时
+        </label>
+      </div>
+    </div>
+  );
+}
+
 function CalendarView() {
   const [diaryDates, setDiaryDates] = useState<string[]>([]);
   const [scheduleDates, setScheduleDates] = useState<string[]>([]);
@@ -510,6 +565,21 @@ export default function App() {
       Notification.requestPermission();
     }
 
+    // Initialize Widget
+    const widgetEnabled = localStorage.getItem('widget_enabled') === 'true';
+    if (widgetEnabled) {
+      window.api.toggleWidget(true);
+      const widgetClickThrough = localStorage.getItem('widget_click_through') === 'true';
+      if (widgetClickThrough) {
+        window.api.setWidgetClickThrough(true);
+      }
+    }
+
+    // Listen to Navigate IPC from Widget
+    window.api.onNavigateTo((tab) => {
+      setActiveTab(tab as TabType);
+    });
+
     const fetchHealth = async () => {
       try {
         const res = await fetch('http://localhost:8000/health/status');
@@ -825,7 +895,7 @@ export default function App() {
                 </div>
               </Card>
 
-              <Card title="自动化设置">
+              <Card title="自动化设置" style={{ marginBottom: '2rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                   <div style={{ flex: 1 }}>
                     <strong>自动上传与日记生成</strong>
@@ -835,6 +905,10 @@ export default function App() {
                     <AutoUploadToggle showConfirm={showConfirm} />
                   </div>
                 </div>
+              </Card>
+
+              <Card title="桌面悬浮组件设置">
+                <WidgetSettings />
               </Card>
             </div>
           )}

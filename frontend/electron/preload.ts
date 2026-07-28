@@ -11,5 +11,12 @@ contextBridge.exposeInMainWorld('api', {
   deleteSchedule: (id: string) => ipcRenderer.invoke('delete-schedule', id),
   getScheduleDates: () => ipcRenderer.invoke('get-schedule-dates'),
   minimize: () => ipcRenderer.send('window-minimize'),
-  close: () => ipcRenderer.send('window-close')
+  close: () => ipcRenderer.send('window-close'),
+  wakeUpMain: (tab: string) => ipcRenderer.send('wake-up-main', tab),
+  onNavigateTo: (callback: (tab: string) => void) => {
+    ipcRenderer.removeAllListeners('navigate-to');
+    ipcRenderer.on('navigate-to', (_, tab) => callback(tab));
+  },
+  toggleWidget: (enabled: boolean) => ipcRenderer.send('toggle-widget', enabled),
+  setWidgetClickThrough: (through: boolean) => ipcRenderer.send('set-widget-click-through', through)
 })

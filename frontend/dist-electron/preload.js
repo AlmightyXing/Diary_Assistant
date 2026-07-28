@@ -11,5 +11,12 @@ electron.contextBridge.exposeInMainWorld("api", {
   deleteSchedule: (id) => electron.ipcRenderer.invoke("delete-schedule", id),
   getScheduleDates: () => electron.ipcRenderer.invoke("get-schedule-dates"),
   minimize: () => electron.ipcRenderer.send("window-minimize"),
-  close: () => electron.ipcRenderer.send("window-close")
+  close: () => electron.ipcRenderer.send("window-close"),
+  wakeUpMain: (tab) => electron.ipcRenderer.send("wake-up-main", tab),
+  onNavigateTo: (callback) => {
+    electron.ipcRenderer.removeAllListeners("navigate-to");
+    electron.ipcRenderer.on("navigate-to", (_, tab) => callback(tab));
+  },
+  toggleWidget: (enabled) => electron.ipcRenderer.send("toggle-widget", enabled),
+  setWidgetClickThrough: (through) => electron.ipcRenderer.send("set-widget-click-through", through)
 });
