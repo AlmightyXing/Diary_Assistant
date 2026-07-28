@@ -73,10 +73,12 @@ async function getSchedules(date) {
     let match = false;
     if (tpl.ruleType === "daily") {
       match = true;
-    } else if (tpl.ruleType === "weekly" && parseInt(tpl.ruleValue) === dayOfWeek) {
-      match = true;
-    } else if (tpl.ruleType === "monthly" && parseInt(tpl.ruleValue) === dateNum) {
-      match = true;
+    } else if (tpl.ruleType === "weekly") {
+      const days = tpl.ruleValue ? tpl.ruleValue.split(",").map(Number) : [];
+      if (days.includes(dayOfWeek)) match = true;
+    } else if (tpl.ruleType === "monthly") {
+      const dates = tpl.ruleValue ? tpl.ruleValue.split(",").map(Number) : [];
+      if (dates.includes(dateNum)) match = true;
     }
     if (match) {
       const existing = allSchedules.find((s) => s.date === date && s.templateId === tpl.id);
@@ -88,6 +90,7 @@ async function getSchedules(date) {
           title: tpl.title,
           description: tpl.description,
           time: tpl.time,
+          type: tpl.type,
           isGenerated: true
         });
       }
@@ -144,6 +147,12 @@ async function deleteSchedule(id) {
   return true;
 }
 let win = null;
+async function getScheduleDates() {
+  const rawSchedules = await fs__namespace.readFile(dataPath, "utf-8");
+  const allSchedules = JSON.parse(rawSchedules);
+  const dates = allSchedules.filter((s) => !s.deleted && !s.isGenerated).map((s) => s.date);
+  return Array.from(new Set(dates));
+}
 function createWindow() {
   win = new electron.BrowserWindow({
     width: 1024,
@@ -171,6 +180,7 @@ electron.app.whenReady().then(() => {
   electron.ipcMain.handle("add-schedule", (_, item) => addSchedule(item));
   electron.ipcMain.handle("update-schedule", (_, item) => updateSchedule(item));
   electron.ipcMain.handle("delete-schedule", (_, id) => deleteSchedule(id));
+  electron.ipcMain.handle("get-schedule-dates", () => getScheduleDates());
   electron.ipcMain.on("window-minimize", (event) => {
     const webContents = event.sender;
     const win2 = electron.BrowserWindow.fromWebContents(webContents);

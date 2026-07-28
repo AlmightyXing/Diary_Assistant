@@ -68,10 +68,12 @@ async function getSchedules(date: string) {
     let match = false
     if (tpl.ruleType === 'daily') {
       match = true
-    } else if (tpl.ruleType === 'weekly' && parseInt(tpl.ruleValue) === dayOfWeek) {
-      match = true
-    } else if (tpl.ruleType === 'monthly' && parseInt(tpl.ruleValue) === dateNum) {
-      match = true
+    } else if (tpl.ruleType === 'weekly') {
+      const days = tpl.ruleValue ? tpl.ruleValue.split(',').map(Number) : []
+      if (days.includes(dayOfWeek)) match = true
+    } else if (tpl.ruleType === 'monthly') {
+      const dates = tpl.ruleValue ? tpl.ruleValue.split(',').map(Number) : []
+      if (dates.includes(dateNum)) match = true
     }
 
     if (match) {
@@ -84,6 +86,7 @@ async function getSchedules(date: string) {
           title: tpl.title,
           description: tpl.description,
           time: tpl.time,
+          type: tpl.type,
           isGenerated: true
         })
       }
@@ -148,6 +151,13 @@ async function deleteSchedule(id: string) {
 
 let win: BrowserWindow | null = null
 
+async function getScheduleDates() {
+  const rawSchedules = await fs.readFile(dataPath, 'utf-8')
+  const allSchedules = JSON.parse(rawSchedules)
+  const dates = allSchedules.filter((s: any) => !s.deleted && !s.isGenerated).map((s: any) => s.date)
+  return Array.from(new Set(dates))
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1024,
@@ -162,7 +172,7 @@ function createWindow() {
 
   if (process.env.VITE_DEV_SERVER_URL) {
     win.loadURL(process.env.VITE_DEV_SERVER_URL)
-    // win.webContents.openDevTools()
+    win.webContents.openDevTools()
   } else {
     win.loadFile(join(__dirname, '../dist/index.html'))
   }
@@ -178,6 +188,7 @@ app.whenReady().then(() => {
   ipcMain.handle('add-schedule', (_, item) => addSchedule(item))
   ipcMain.handle('update-schedule', (_, item) => updateSchedule(item))
   ipcMain.handle('delete-schedule', (_, id) => deleteSchedule(id))
+  ipcMain.handle('get-schedule-dates', () => getScheduleDates())
 
   ipcMain.on('window-minimize', (event) => {
     const webContents = event.sender

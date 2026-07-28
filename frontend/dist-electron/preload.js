@@ -9,6 +9,7 @@ electron.contextBridge.exposeInMainWorld("api", {
   deleteTemplate: (id) => electron.ipcRenderer.invoke("delete-template", id),
   updateSchedule: (item) => electron.ipcRenderer.invoke("update-schedule", item),
   deleteSchedule: (id) => electron.ipcRenderer.invoke("delete-schedule", id),
+  getScheduleDates: () => electron.ipcRenderer.invoke("get-schedule-dates"),
   minimize: () => electron.ipcRenderer.send("window-minimize"),
   close: () => electron.ipcRenderer.send("window-close")
 });

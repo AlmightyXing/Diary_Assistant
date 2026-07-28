@@ -12,12 +12,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
 
-try:
-    from win10toast import ToastNotifier
-    toaster = ToastNotifier()
-except ImportError:
-    toaster = None
-    print("win10toast not installed")
+# Removed win10toast as notifications are now handled by frontend
+
+
+import pygetwindow as gw
 
 DB_FILE = os.path.join(os.path.dirname(__file__), 'stats.db')
 
@@ -63,12 +61,12 @@ def get_active_window_title():
 class HealthTracker:
     def __init__(self):
         self.idle_threshold = 5 * 60 * 1000  # 5 minutes in ms
-        self.sedentary_total = 45 * 60       # 45 minutes
-        self.exercise_total = 5 * 60         # 5 minutes
-        self.eye_care_total = 20 * 60        # 20 minutes
+        self.sedentary_duration = 45 * 60
+        self.exercise_duration = 5 * 60
+        self.eye_care_total = 20 * 60
         
         self.phase = 'sedentary' # 'sedentary' or 'exercise'
-        self.sedentary_left = self.sedentary_total
+        self.sedentary_left = self.sedentary_duration
         self.eye_care_left = self.eye_care_total
         self.is_suspended = False
 
@@ -80,29 +78,29 @@ class HealthTracker:
         
         self.is_suspended = False
         
-        # Decrement timers but stop at 0
         if self.sedentary_left > 0:
-            self.sedentary_left = max(0, self.sedentary_left - dt)
-        
+            self.sedentary_left -= dt
+            if self.sedentary_left < 0:
+                self.sedentary_left = 0
+                
         if self.eye_care_left > 0:
-            self.eye_care_left = max(0, self.eye_care_left - dt)
+            self.eye_care_left -= dt
+            if self.eye_care_left < 0:
+                self.eye_care_left = 0
 
-    def refresh_sedentary(self):
-        if self.phase == 'sedentary':
-            self.sedentary_left = self.sedentary_total
-        else:
-            self.sedentary_left = self.exercise_total
+    def refresh(self, timer_type):
+        if timer_type == 'sedentary':
+            self.sedentary_left = self.sedentary_duration if self.phase == 'sedentary' else self.exercise_duration
+        elif timer_type == 'eye_care':
+            self.eye_care_left = self.eye_care_total
 
-    def next_phase_sedentary(self):
+    def next_phase(self):
         if self.phase == 'sedentary':
             self.phase = 'exercise'
-            self.sedentary_left = self.exercise_total
+            self.sedentary_left = self.exercise_duration
         else:
             self.phase = 'sedentary'
-            self.sedentary_left = self.sedentary_total
-
-    def refresh_eye_care(self):
-        self.eye_care_left = self.eye_care_total
+            self.sedentary_left = self.sedentary_duration
 
 health_tracker = HealthTracker()
 
@@ -211,6 +209,21 @@ def remove_whitelist(item: WhitelistItem):
     conn.close()
     return {"status": "success", "app_name": item.app_name}
 
+@app.get("/running-apps")
+def get_running_apps():
+    apps = set()
+    try:
+        windows = gw.getAllTitles()
+        for title in windows:
+            if title.strip():
+                parts = title.split('-')
+                app_name = parts[-1].strip()
+                if app_name:
+                    apps.add(app_name)
+    except Exception as e:
+        print(f"Error enumerating windows: {e}")
+    return {"running_apps": sorted(list(apps))}
+
 @app.get("/health/status")
 def get_health_status():
     return {
@@ -218,7 +231,7 @@ def get_health_status():
         "sedentary": {
             "phase": health_tracker.phase,
             "time_left": int(health_tracker.sedentary_left),
-            "total": health_tracker.exercise_total if health_tracker.phase == 'exercise' else health_tracker.sedentary_total
+            "total": health_tracker.sedentary_duration if health_tracker.phase == 'sedentary' else health_tracker.exercise_duration
         },
         "eye_care": {
             "time_left": int(health_tracker.eye_care_left),
@@ -226,20 +239,17 @@ def get_health_status():
         }
     }
 
-class HealthControlRequest(BaseModel):
-    type: str # 'sedentary' or 'eye_care'
-    action: str # 'refresh' or 'next_phase'
+class TimerActionReq(BaseModel):
+    timer_type: str
 
-@app.post("/health/control")
-def control_health(req: HealthControlRequest):
-    if req.type == 'sedentary':
-        if req.action == 'refresh':
-            health_tracker.refresh_sedentary()
-        elif req.action == 'next_phase':
-            health_tracker.next_phase_sedentary()
-    elif req.type == 'eye_care':
-        if req.action == 'refresh':
-            health_tracker.refresh_eye_care()
+@app.post("/health/refresh")
+def refresh_health(req: TimerActionReq):
+    health_tracker.refresh(req.timer_type)
+    return {"status": "success"}
+
+@app.post("/health/next-phase")
+def next_health_phase():
+    health_tracker.next_phase()
     return {"status": "success"}
 
 class DiaryDraftRequest(BaseModel):

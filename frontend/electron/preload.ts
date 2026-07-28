@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('api', {
   deleteTemplate: (id: string) => ipcRenderer.invoke('delete-template', id),
   updateSchedule: (item: any) => ipcRenderer.invoke('update-schedule', item),
   deleteSchedule: (id: string) => ipcRenderer.invoke('delete-schedule', id),
+  getScheduleDates: () => ipcRenderer.invoke('get-schedule-dates'),
   minimize: () => ipcRenderer.send('window-minimize'),
   close: () => ipcRenderer.send('window-close')
 })

@@ -70,12 +70,12 @@ export default function DiaryPanel({ date, schedules }: { date: string, schedule
       <h2 className="tech-heading" style={{ fontSize: '3rem', marginBottom: '2rem' }}>日志生成</h2>
       
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginBottom: '2rem' }}>
-        <Card title="原始日程">
+        <Card title="当日日程">
           <pre className="mono-text" style={{ whiteSpace: 'pre-wrap', color: 'var(--text-dim)', margin: 0, minHeight: '100px' }}>
             {scheduleText || '// 暂无数据'}
           </pre>
         </Card>
-        <Card title="原始应用使用记录">
+        <Card title="当日记录">
           <pre className="mono-text" style={{ whiteSpace: 'pre-wrap', color: 'var(--text-dim)', margin: 0, minHeight: '100px' }}>
             {appStatsText || '// 暂无数据'}
           </pre>
@@ -88,15 +88,27 @@ export default function DiaryPanel({ date, schedules }: { date: string, schedule
         </Button>
         {isConfirmOpen && (
           <div className="modal-overlay">
-            <div className="modal-content" style={{ borderColor: 'var(--accent-red)', boxShadow: '8px 8px 0px var(--accent-red)' }}>
-              <h3 className="tech-heading" style={{ color: 'var(--accent-red)', marginBottom: '1rem' }}>隐私警告</h3>
-              <p className="mono-text" style={{ marginBottom: '2rem', lineHeight: '1.5' }}>
-                您的日程和应用使用数据将被发送到 LLM API。<br/>
-                是否继续？
+            <div className="modal-content" style={{ 
+              border: '4px solid #FF0000', 
+              background: '#000000', 
+              color: '#FFFFFF',
+              boxShadow: '0 0 20px rgba(255, 0, 0, 0.5)',
+              position: 'relative'
+            }}>
+              {/* Warning Tape Decoration */}
+              <div style={{
+                position: 'absolute', top: 0, left: 0, right: 0, height: '8px',
+                background: 'repeating-linear-gradient(45deg, #FFD700, #FFD700 10px, #000000 10px, #000000 20px)'
+              }}></div>
+              <h3 className="tech-heading" style={{ color: '#FF0000', marginTop: '1rem', marginBottom: '1rem', textShadow: '0 0 5px #FF0000' }}>// 危险操作确认</h3>
+              <p className="mono-text" style={{ marginBottom: '2rem', lineHeight: '1.5', color: '#FFD700' }}>
+                WARNING: 数据传输至外部 LLM 接口。<br/>
+                您的隐私日程和应用使用数据将被发送。<br/>
+                是否确认执行？
               </p>
               <div style={{ display: 'flex', gap: '1rem' }}>
-                <Button variant="secondary" onClick={() => setIsConfirmOpen(false)} style={{ flex: 1 }}>中止</Button>
-                <Button variant="danger" onClick={generateDraft} style={{ flex: 1 }}>确认</Button>
+                <Button variant="secondary" onClick={() => setIsConfirmOpen(false)} style={{ flex: 1, backgroundColor: '#333', color: '#FFF' }}>中止</Button>
+                <Button variant="danger" onClick={generateDraft} style={{ flex: 1, backgroundColor: '#FF0000', color: '#FFF' }}>强制执行</Button>
               </div>
             </div>
           </div>

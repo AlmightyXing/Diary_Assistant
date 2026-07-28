@@ -45,12 +45,11 @@ h1, h2, h3, h4, h5, h6 {
 .tech-heading {
   display: inline-flex;
   align-items: center;
-  color: #FFFFFF;
-  background-color: #333333;
-  padding: 0.5rem 1rem;
+  color: #000000;
+  background-color: transparent;
+  padding: 0;
   font-weight: 900;
   letter-spacing: -0.02em;
-  border-radius: 4px;
 }
 
 .tech-heading::before {
@@ -299,16 +298,12 @@ input:focus, select:focus, textarea:focus {
 .nav-item {
   position: relative;
   width: 100%;
-  height: 80px;
+  height: 60px;
   display: flex;
-  flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 0.25rem;
   cursor: pointer;
   transition: all 0.2s;
-  background: transparent;
-  border: none;
 }
 
 .nav-item img {
@@ -329,18 +324,6 @@ input:focus, select:focus, textarea:focus {
 
 .nav-item.active img {
   opacity: 1;
-}
-
-.nav-item span {
-  font-size: 0.75rem;
-  color: var(--text-dim);
-  font-weight: normal;
-  transition: color 0.2s;
-}
-
-.nav-item.active span {
-  color: var(--text-main);
-  font-weight: bold;
 }
 
 /* 导航栏左侧与图标同高的黑色长条 */
@@ -376,8 +359,8 @@ input:focus, select:focus, textarea:focus {
   background: var(--bg-base);
   border-radius: var(--radius);
   overflow: hidden;
-  transition: transform 0.2s;
-  position: relative; /* For absolute positioning of actions */
+  transition: transform 0.2s, opacity 0.2s;
+  position: relative;
 }
 
 .schedule-item-tech:hover {
@@ -385,7 +368,14 @@ input:focus, select:focus, textarea:focus {
   box-shadow: var(--shadow-soft);
 }
 
-/* ... existing ... */
+.schedule-item-tech.completed {
+  opacity: 0.6;
+}
+
+.schedule-item-tech.completed .schedule-content strong {
+  text-decoration: line-through;
+}
+
 .schedule-time-block {
   background-color: #1A1A1A;
   color: var(--accent-yellow);
@@ -405,7 +395,6 @@ input:focus, select:focus, textarea:focus {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  transition: padding-right 0.3s ease; /* Smooth transition if needed */
 }
 
 .schedule-content strong {
@@ -417,17 +406,14 @@ input:focus, select:focus, textarea:focus {
   position: absolute;
   right: 0;
   top: 0;
-  bottom: 0;
-  background: var(--bg-sidebar);
+  height: 100%;
   transform: translateX(100%);
-  opacity: 0;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s;
-  box-shadow: -4px 0 15px rgba(0,0,0,0.1);
+  transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+  background: var(--bg-sidebar);
 }
 
 .schedule-item-tech:hover .schedule-actions {
   transform: translateX(0);
-  opacity: 1;
 }
 
 .schedule-actions button {
@@ -441,21 +427,15 @@ input:focus, select:focus, textarea:focus {
   transition: background-color 0.2s;
 }
 
-.schedule-actions button img {
-  width: 24px;
-  height: 24px;
-  opacity: 0.7;
-  transition: opacity 0.2s;
-}
-
 .schedule-actions button:hover {
-  background: var(--bg-panel);
-}
-
-.schedule-actions button:hover img {
-  opacity: 1;
+  background-color: #E9ECEF;
 }
 
 .schedule-actions button.del-btn:hover {
-  background: var(--accent-pink);
+  background-color: var(--accent-pink);
+}
+
+.schedule-actions img {
+  width: 20px;
+  height: 20px;
 }
