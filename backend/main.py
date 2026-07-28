@@ -11,6 +11,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 # Removed win10toast as notifications are now handled by frontend
 
@@ -317,6 +321,7 @@ def update_health_config(req: HealthConfigReq):
 class DiaryDraftRequest(BaseModel):
     schedule_text: str
     app_stats_text: str
+    api_key: str | None = None
 
 class DiarySaveRequest(BaseModel):
     date: str
@@ -327,11 +332,19 @@ def generate_diary(req: DiaryDraftRequest):
     prompt = f"请根据以下日程和应用使用情况写一篇日记：\n【日程】\n{req.schedule_text}\n【应用记录】\n{req.app_stats_text}"
     draft = f"【AI初稿】\n今天我完成了一些日程，主要包括：\n{req.schedule_text}\n\n此外，我使用了一些应用程序：\n{req.app_stats_text}\n\n总的来说，这是充实的一天！"
     try:
-        api_key = os.environ.get("OPENAI_API_KEY")
+        api_key = req.api_key or os.environ.get("OPENAI_API_KEY") or os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("API_KEY")
         if api_key:
-            url = "https://api.openai.com/v1/chat/completions"
+            base_url = os.environ.get("BASE_URL", "https://api.openai.com/v1")
+            # 兼容完整的 completions url 或只填写 baseUrl
+            if not base_url.endswith("/chat/completions"):
+                url = f"{base_url.rstrip('/')}/chat/completions"
+            else:
+                url = base_url
+            
+            # 默认使用 deepseek-chat，也可以在 .env 中通过 LLM_MODEL 配置
+            model_name = os.environ.get("LLM_MODEL", "deepseek-chat")
             data = {
-                "model": "gpt-3.5-turbo",
+                "model": model_name,
                 "messages": [
                     {"role": "system", "content": "you are a diary assistant."},
                     {"role": "user", "content": prompt}

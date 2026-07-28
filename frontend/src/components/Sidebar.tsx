@@ -1,4 +1,4 @@
-import React from 'react';
+
 
 export type TabType = 'schedules' | 'templates' | 'calendar' | 'health' | 'diary' | 'settings';
 

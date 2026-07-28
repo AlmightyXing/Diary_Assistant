@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from './components/Card';
 import { Button } from './components/Button';
 
@@ -39,7 +39,7 @@ export default function DiaryPanel({ date, schedules }: { date: string, schedule
       const res = await fetch('http://localhost:8000/generate-diary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ schedule_text: scheduleText, app_stats_text: appStatsText })
+        body: JSON.stringify({ schedule_text: scheduleText, app_stats_text: appStatsText, api_key: localStorage.getItem('deepseek_api_key') || null })
       });
       const data = await res.json();
       setDraft(data.draft);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import DiaryPanel from './DiaryPanel';
 import { Sidebar, TabType } from './components/Sidebar';
 import { Card } from './components/Card';
@@ -18,6 +18,10 @@ declare global {
       getScheduleDates: () => Promise<string[]>;
       minimize: () => void;
       close: () => void;
+      toggleWidget: (enabled: boolean) => void;
+      setWidgetClickThrough: (through: boolean) => void;
+      wakeUpMain: (tab: string) => void;
+      onNavigateTo: (callback: (tab: string) => void) => void;
     }
   }
 }
@@ -409,7 +413,7 @@ export default function App() {
             const genRes = await fetch('http://localhost:8000/generate-diary', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ schedule_text: scheduleText, app_stats_text: appStatsText })
+              body: JSON.stringify({ schedule_text: scheduleText, app_stats_text: appStatsText, api_key: localStorage.getItem('deepseek_api_key') || null })
             });
             const genData = await genRes.json();
 
@@ -576,7 +580,7 @@ export default function App() {
     }
 
     // Listen to Navigate IPC from Widget
-    window.api.onNavigateTo((tab) => {
+    window.api.onNavigateTo((tab: string) => {
       setActiveTab(tab as TabType);
     });
 
@@ -892,6 +896,25 @@ export default function App() {
                 <div className="schedule-grid" id="whitelist-container">
                   {/* 动态渲染 whitelist */}
                   <WhitelistRenderer />
+                </div>
+              </Card>
+
+              <Card title="模型接口设置" style={{ marginBottom: '2rem' }}>
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.5rem', color: 'var(--text-main)' }}>DeepSeek API Key (暂时只支持DeepSeek生成)</label>
+                  <input
+                    type="text"
+                    style={{ width: '100%' }}
+                    placeholder="请输入您的 DeepSeek API Key，留空则使用后端默认配置"
+                    defaultValue={localStorage.getItem('deepseek_api_key') || ''}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        localStorage.setItem('deepseek_api_key', e.target.value);
+                      } else {
+                        localStorage.removeItem('deepseek_api_key');
+                      }
+                    }}
+                  />
                 </div>
               </Card>
 
