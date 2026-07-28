@@ -32,3 +32,16 @@ Thumbs.db
 # Agent
 .agents/
 documents/skill目录.md
+
+# Release
+frontend/dist_electron/
+backend/dist/
+backend/build/
+backend/*.spec
+
+# Data & Privacy
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+/data/

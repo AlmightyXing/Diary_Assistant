@@ -1,13 +1,53 @@
-import { app, BrowserWindow, ipcMain, screen } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, Tray, Menu, screen } from 'electron'
 import { join } from 'path'
 import * as fs from 'fs/promises'
 import * as fsSync from 'fs'
+import { spawn, ChildProcess } from 'child_process'
+let backendProcess: ChildProcess | null = null
+
+function startBackend() {
+  const isPackaged = app.isPackaged
+  const backendExePath = isPackaged
+    ? join(process.resourcesPath, 'extraResources', 'backend.exe')
+    : join(__dirname, '../../backend/dist/backend.exe') // wait, for dev we usually start it manually. We can just check if it exists.
+    
+  if (fsSync.existsSync(backendExePath)) {
+    console.log('Starting backend: ', backendExePath)
+    backendProcess = spawn(backendExePath, [], { stdio: 'inherit' })
+  } else {
+    console.warn('Backend executable not found at: ', backendExePath)
+  }
+}
+
+app.on('will-quit', () => {
+  if (backendProcess) {
+    try {
+      if (process.platform === 'win32' && backendProcess.pid) {
+        require('child_process').execSync(`taskkill /pid ${backendProcess.pid} /t /f`)
+      } else {
+        backendProcess.kill()
+      }
+    } catch (e) {
+      console.error('Failed to kill backend:', e)
+    }
+  }
+})
 
 // 强制设置一个全新的 AppUserModelId，绕过之前的通知拦截
 app.setAppUserModelId('DiaryAs')
 
-const dataPath = join(app.getPath('userData'), 'schedule_data.json')
-const templatesPath = join(app.getPath('userData'), 'schedule_templates.json')
+const isPackaged = app.isPackaged
+const appDataPath = isPackaged 
+    ? join(process.resourcesPath, '..', 'data') 
+    : join(__dirname, '../../data')
+
+if (!fsSync.existsSync(appDataPath)) {
+    fsSync.mkdirSync(appDataPath, { recursive: true })
+}
+
+const dataPath = join(appDataPath, 'schedule_data.json')
+const templatesPath = join(appDataPath, 'schedule_templates.json')
+
 
 // Ensure data files exist
 if (!fsSync.existsSync(dataPath)) {
@@ -202,6 +242,33 @@ async function getScheduleDates() {
   return Array.from(new Set(dates))
 }
 
+
+let tray: Tray | null = null
+
+function setupTray() {
+  if (tray) return
+  const iconPath = join(__dirname, '../dist/icons/Calendar.png')
+    
+  tray = new Tray(iconPath)
+  tray.setToolTip('Diary Assistant')
+  
+  const contextMenu = Menu.buildFromTemplate([
+    { label: '打开主界面', click: () => { if (win) { win.show(); win.focus() } else { createWindow() } } },
+    { type: 'separator' },
+    { label: '退出应用', click: () => { app.quit() } }
+  ])
+  tray.setContextMenu(contextMenu)
+  
+  tray.on('click', () => {
+    if (win) {
+      win.show()
+      win.focus()
+    } else {
+      createWindow()
+    }
+  })
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1024,
@@ -223,6 +290,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  startBackend()
   ipcMain.handle('get-templates', getTemplates)
   ipcMain.handle('add-template', (_, item) => addTemplate(item))
   ipcMain.handle('update-template', (_, item) => updateTemplate(item))
@@ -240,10 +308,25 @@ app.whenReady().then(() => {
     win?.minimize()
   })
   
-  ipcMain.on('window-close', (event) => {
+  ipcMain.on('window-close', async (event) => {
     const webContents = event.sender
     const currentWin = BrowserWindow.fromWebContents(webContents)
-    currentWin?.close()
+    if (currentWin === win) {
+      const { response } = await dialog.showMessageBox(currentWin!, {
+        type: 'question',
+        buttons: ['隐藏至后台', '退出应用', '取消'],
+        title: '退出确认',
+        message: `您要关闭应用还是将其隐藏至后台？\n(隐藏至后台时，桌面小组件将继续运行，且可以通过状态栏图标恢复)`
+      })
+      if (response === 0) {
+        setupTray()
+        currentWin?.hide()
+      } else if (response === 1) {
+        app.quit()
+      }
+    } else {
+      currentWin?.close()
+    }
   })
 
   ipcMain.on('wake-up-main', (_, tab) => {

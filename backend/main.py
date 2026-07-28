@@ -20,11 +20,22 @@ load_dotenv()
 
 
 import pygetwindow as gw
+import sys
+import os
 
-APP_DIR = os.path.expanduser('~/.diary_assistant')
+if getattr(sys, 'frozen', False):
+    # Pyinstaller executable
+    base_dir = os.path.dirname(sys.executable)
+    # The exe will be in win-unpacked/resources/extraResources/
+    APP_DIR = os.path.abspath(os.path.join(base_dir, '..', '..', 'data'))
+else:
+    APP_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'data'))
+
 if not os.path.exists(APP_DIR):
     os.makedirs(APP_DIR)
 DB_FILE = os.path.join(APP_DIR, 'stats.db')
+
+
 
 def init_db():
     conn = sqlite3.connect(DB_FILE)
@@ -391,3 +402,8 @@ def get_diary_dates():
     dates = [row[0] for row in cursor.fetchall()]
     conn.close()
     return {"dates": dates}
+
+
+if __name__ == '__main__':
+    import uvicorn
+    uvicorn.run(app, host='127.0.0.1', port=8000)

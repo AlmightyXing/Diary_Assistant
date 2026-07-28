@@ -3,6 +3,7 @@ const electron = require("electron");
 const path = require("path");
 const fs = require("fs/promises");
 const fsSync = require("fs");
+const child_process = require("child_process");
 function _interopNamespaceDefault(e) {
   const n = Object.create(null, { [Symbol.toStringTag]: { value: "Module" } });
   if (e) {
@@ -21,9 +22,38 @@ function _interopNamespaceDefault(e) {
 }
 const fs__namespace = /* @__PURE__ */ _interopNamespaceDefault(fs);
 const fsSync__namespace = /* @__PURE__ */ _interopNamespaceDefault(fsSync);
+let backendProcess = null;
+function startBackend() {
+  const isPackaged2 = electron.app.isPackaged;
+  const backendExePath = isPackaged2 ? path.join(process.resourcesPath, "extraResources", "backend.exe") : path.join(__dirname, "../../backend/dist/backend.exe");
+  if (fsSync__namespace.existsSync(backendExePath)) {
+    console.log("Starting backend: ", backendExePath);
+    backendProcess = child_process.spawn(backendExePath, [], { stdio: "inherit" });
+  } else {
+    console.warn("Backend executable not found at: ", backendExePath);
+  }
+}
+electron.app.on("will-quit", () => {
+  if (backendProcess) {
+    try {
+      if (process.platform === "win32" && backendProcess.pid) {
+        require("child_process").execSync(`taskkill /pid ${backendProcess.pid} /t /f`);
+      } else {
+        backendProcess.kill();
+      }
+    } catch (e) {
+      console.error("Failed to kill backend:", e);
+    }
+  }
+});
 electron.app.setAppUserModelId("DiaryAs");
-const dataPath = path.join(electron.app.getPath("userData"), "schedule_data.json");
-const templatesPath = path.join(electron.app.getPath("userData"), "schedule_templates.json");
+const isPackaged = electron.app.isPackaged;
+const appDataPath = isPackaged ? path.join(process.resourcesPath, "..", "data") : path.join(__dirname, "../../data");
+if (!fsSync__namespace.existsSync(appDataPath)) {
+  fsSync__namespace.mkdirSync(appDataPath, { recursive: true });
+}
+const dataPath = path.join(appDataPath, "schedule_data.json");
+const templatesPath = path.join(appDataPath, "schedule_templates.json");
 if (!fsSync__namespace.existsSync(dataPath)) {
   fsSync__namespace.writeFileSync(dataPath, JSON.stringify([]));
 }
@@ -189,6 +219,36 @@ async function getScheduleDates() {
   const dates = allSchedules.filter((s) => !s.deleted && !s.isGenerated).map((s) => s.date);
   return Array.from(new Set(dates));
 }
+let tray = null;
+function setupTray() {
+  if (tray) return;
+  const iconPath = path.join(__dirname, "../dist/icons/Calendar.png");
+  tray = new electron.Tray(iconPath);
+  tray.setToolTip("Diary Assistant");
+  const contextMenu = electron.Menu.buildFromTemplate([
+    { label: "打开主界面", click: () => {
+      if (win) {
+        win.show();
+        win.focus();
+      } else {
+        createWindow();
+      }
+    } },
+    { type: "separator" },
+    { label: "退出应用", click: () => {
+      electron.app.quit();
+    } }
+  ]);
+  tray.setContextMenu(contextMenu);
+  tray.on("click", () => {
+    if (win) {
+      win.show();
+      win.focus();
+    } else {
+      createWindow();
+    }
+  });
+}
 function createWindow() {
   win = new electron.BrowserWindow({
     width: 1024,
@@ -207,6 +267,7 @@ function createWindow() {
   }
 }
 electron.app.whenReady().then(() => {
+  startBackend();
   electron.ipcMain.handle("get-templates", getTemplates);
   electron.ipcMain.handle("add-template", (_, item) => addTemplate(item));
   electron.ipcMain.handle("update-template", (_, item) => updateTemplate(item));
@@ -221,10 +282,26 @@ electron.app.whenReady().then(() => {
     const win2 = electron.BrowserWindow.fromWebContents(webContents);
     win2 == null ? void 0 : win2.minimize();
   });
-  electron.ipcMain.on("window-close", (event) => {
+  electron.ipcMain.on("window-close", async (event) => {
     const webContents = event.sender;
     const currentWin = electron.BrowserWindow.fromWebContents(webContents);
-    currentWin == null ? void 0 : currentWin.close();
+    if (currentWin === win) {
+      const { response } = await electron.dialog.showMessageBox(currentWin, {
+        type: "question",
+        buttons: ["隐藏至后台", "退出应用", "取消"],
+        title: "退出确认",
+        message: `您要关闭应用还是将其隐藏至后台？
+(隐藏至后台时，桌面小组件将继续运行，且可以通过状态栏图标恢复)`
+      });
+      if (response === 0) {
+        setupTray();
+        currentWin == null ? void 0 : currentWin.hide();
+      } else if (response === 1) {
+        electron.app.quit();
+      }
+    } else {
+      currentWin == null ? void 0 : currentWin.close();
+    }
   });
   electron.ipcMain.on("wake-up-main", (_, tab) => {
     if (win && !win.isDestroyed()) {

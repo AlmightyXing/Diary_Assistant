@@ -25,5 +25,24 @@
     "husky": "^9.0.11",
     "lint-staged": "^15.2.2",
     "prettier": "^3.2.5"
+  },
+  "build": {
+    "appId": "com.diary.assistant",
+    "productName": "DiaryAs",
+    "directories": {
+      "output": "dist_electron"
+    },
+    "win": {
+      "target": "dir"
+    },
+    "extraResources": [
+      {
+        "from": "extraResources",
+        "to": "extraResources",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ]
   }
 }
