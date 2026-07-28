@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import './index.css';
+import { API_BASE_URL } from './config';
 
 const formatTime = (seconds: number) => {
   if (seconds < 0) seconds = 0;
@@ -30,7 +31,7 @@ export default function Widget() {
     const fetchHealth = async () => {
       if (components.includes('health')) {
         try {
-          const res = await fetch('http://localhost:8000/health/status');
+          const res = await fetch(API_BASE_URL + '/health/status');
           const data = await res.json();
           setHealth(data);
         } catch (e) {

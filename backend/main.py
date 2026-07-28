@@ -21,7 +21,10 @@ load_dotenv()
 
 import pygetwindow as gw
 
-DB_FILE = os.path.join(os.path.dirname(__file__), 'stats.db')
+APP_DIR = os.path.expanduser('~/.diary_assistant')
+if not os.path.exists(APP_DIR):
+    os.makedirs(APP_DIR)
+DB_FILE = os.path.join(APP_DIR, 'stats.db')
 
 def init_db():
     conn = sqlite3.connect(DB_FILE)

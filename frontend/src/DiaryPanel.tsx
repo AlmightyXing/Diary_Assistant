@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card } from './components/Card';
 import { Button } from './components/Button';
+import { API_BASE_URL } from './config';
 
 export default function DiaryPanel({ date, schedules }: { date: string, schedules: any[] }) {
   const [appStats, setAppStats] = useState<any[]>([]);
@@ -10,12 +11,12 @@ export default function DiaryPanel({ date, schedules }: { date: string, schedule
   const [savedDiary, setSavedDiary] = useState('');
 
   useEffect(() => {
-    fetch('http://localhost:8000/stats')
+    fetch(API_BASE_URL + '/stats')
       .then(r => r.json())
       .then(data => setAppStats(data))
       .catch(e => console.error(e));
       
-    fetch('http://localhost:8000/diary/' + date)
+    fetch(API_BASE_URL + '/diary/' + date)
       .then(r => r.json())
       .then(data => {
         if (data && data.content) {
@@ -36,7 +37,7 @@ export default function DiaryPanel({ date, schedules }: { date: string, schedule
     setIsGenerating(true);
     setIsConfirmOpen(false);
     try {
-      const res = await fetch('http://localhost:8000/generate-diary', {
+      const res = await fetch(API_BASE_URL + '/generate-diary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ schedule_text: scheduleText, app_stats_text: appStatsText, api_key: localStorage.getItem('deepseek_api_key') || null })
@@ -52,7 +53,7 @@ export default function DiaryPanel({ date, schedules }: { date: string, schedule
 
   const saveDiary = async () => {
     try {
-      await fetch('http://localhost:8000/save-diary', {
+      await fetch(API_BASE_URL + '/save-diary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ date, content: draft })

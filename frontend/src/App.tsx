@@ -3,6 +3,7 @@ import DiaryPanel from './DiaryPanel';
 import { Sidebar, TabType } from './components/Sidebar';
 import { Card } from './components/Card';
 import { Button } from './components/Button';
+import { API_BASE_URL } from './config';
 
 declare global {
   interface Window {
@@ -55,7 +56,7 @@ function WhitelistRenderer() {
 
   const loadWhitelist = async () => {
     try {
-      const res = await fetch('http://localhost:8000/whitelist');
+      const res = await fetch(API_BASE_URL + '/whitelist');
       const data = await res.json();
       setWhitelist(data.whitelist || []);
     } catch (e) {
@@ -72,7 +73,7 @@ function WhitelistRenderer() {
 
   const removeApp = async (appName: string) => {
     try {
-      await fetch('http://localhost:8000/whitelist', {
+      await fetch(API_BASE_URL + '/whitelist', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ app_name: appName })
@@ -201,7 +202,7 @@ function CalendarView() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   useEffect(() => {
-    fetch('http://localhost:8000/diaries/dates')
+    fetch(API_BASE_URL + '/diaries/dates')
       .then(r => r.json())
       .then(d => setDiaryDates(d.dates || []))
       .catch(e => console.error(e));
@@ -318,7 +319,7 @@ function CalendarView() {
                   onClick={() => setIsDrawerOpen(false)}
                   style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.5rem' }}
                 >
-                  <img src="/data/Close.png" alt="关闭" style={{ width: '24px', height: '24px' }} />
+                  <img src="./data/Close.png" alt="关闭" style={{ width: '24px', height: '24px' }} />
                 </button>
               </div>
               <DiaryPanel date={selectedDate} schedules={[]} />
@@ -365,18 +366,18 @@ export default function App() {
       // 1. Downgrade Check (If day rolled over and yesterday wasn't handled)
       if (lastHandledDate !== todayStr) {
         try {
-          const diaryRes = await fetch(`http://localhost:8000/diary/${lastHandledDate}`);
+          const diaryRes = await fetch(`${API_BASE_URL}/diary/${lastHandledDate}`);
           const diaryData = await diaryRes.json();
           if (!diaryData.content) {
             // Downgrade: Save raw stats as diary
             const schedulesData = await window.api.getSchedules(lastHandledDate);
             const scheduleText = schedulesData.map(s => s.time + ' ' + s.title).join('\n');
-            const statsRes = await fetch('http://localhost:8000/stats');
+            const statsRes = await fetch(API_BASE_URL + '/stats');
             const statsData = await statsRes.json();
             const appStatsText = (statsData || []).map((s: any) => s.app_name + ': ' + (s.active_time_seconds || 0) + 's').join('\n');
 
             const downgradeContent = `【保底降级日记 - ${lastHandledDate}】\n\n[日程]\n${scheduleText || '无'}\n\n[应用使用]\n${appStatsText || '无'}\n\n// 自动转储生数据`;
-            await fetch('http://localhost:8000/save-diary', {
+            await fetch(API_BASE_URL + '/save-diary', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ date: lastHandledDate, content: downgradeContent })
@@ -384,7 +385,7 @@ export default function App() {
             console.log('Downgrade successful for', lastHandledDate);
           }
           // Reset stats for the new day
-          await fetch('http://localhost:8000/reset-stats', { method: 'POST' });
+          await fetch(API_BASE_URL + '/reset-stats', { method: 'POST' });
         } catch (e) {
           console.error('Downgrade failed', e);
         }
@@ -406,18 +407,18 @@ export default function App() {
           try {
             const schedulesData = await window.api.getSchedules(todayStr);
             const scheduleText = schedulesData.map(s => s.time + ' ' + s.title).join('\n');
-            const statsRes = await fetch('http://localhost:8000/stats');
+            const statsRes = await fetch(API_BASE_URL + '/stats');
             const statsData = await statsRes.json();
             const appStatsText = (statsData || []).map((s: any) => s.app_name + ': ' + (s.active_time_seconds || 0) + 's').join('\n');
 
-            const genRes = await fetch('http://localhost:8000/generate-diary', {
+            const genRes = await fetch(API_BASE_URL + '/generate-diary', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ schedule_text: scheduleText, app_stats_text: appStatsText, api_key: localStorage.getItem('deepseek_api_key') || null })
             });
             const genData = await genRes.json();
 
-            await fetch('http://localhost:8000/save-diary', {
+            await fetch(API_BASE_URL + '/save-diary', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ date: todayStr, content: genData.draft })
@@ -540,7 +541,7 @@ export default function App() {
 
   const loadHealthConfig = async () => {
     try {
-      const res = await fetch('http://localhost:8000/health/config');
+      const res = await fetch(API_BASE_URL + '/health/config');
       const data = await res.json();
       setHealthConfig(data);
     } catch (e) {
@@ -550,7 +551,7 @@ export default function App() {
 
   const handleSaveHealthConfig = async () => {
     try {
-      await fetch('http://localhost:8000/health/config', {
+      await fetch(API_BASE_URL + '/health/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(healthConfig)
@@ -586,7 +587,7 @@ export default function App() {
 
     const fetchHealth = async () => {
       try {
-        const res = await fetch('http://localhost:8000/health/status');
+        const res = await fetch(API_BASE_URL + '/health/status');
         const data = await res.json();
         setHealthStatus(data);
 
@@ -605,7 +606,7 @@ export default function App() {
           }
           notifiedEye.current = true;
           // 倒计时结束后自动刷新重置
-          fetch('http://localhost:8000/health/refresh', {
+          fetch(API_BASE_URL + '/health/refresh', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ timer_type: 'eye_care' })
@@ -636,7 +637,7 @@ export default function App() {
   };
 
   const handleRefreshTimer = async (timer_type: string) => {
-    await fetch('http://localhost:8000/health/refresh', {
+    await fetch(API_BASE_URL + '/health/refresh', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ timer_type })
@@ -644,7 +645,7 @@ export default function App() {
   };
 
   const handleNextPhase = async () => {
-    await fetch('http://localhost:8000/health/next-phase', { method: 'POST' });
+    await fetch(API_BASE_URL + '/health/next-phase', { method: 'POST' });
   };
 
   return (
@@ -699,17 +700,17 @@ export default function App() {
                       </div>
                       <div className="schedule-actions">
                         <button onClick={() => openScheduleModal(s)} title="编辑">
-                          <img src="/data/Edit.png" alt="编辑" />
+                          <img src="./data/Edit.png" alt="编辑" />
                         </button>
                         <button onClick={async () => {
                           const updated = { ...s, is_completed: !s.is_completed };
                           await window.api.updateSchedule(updated);
                           loadSchedules(date);
                         }} title="完成">
-                          <img src="/data/Complete.png" alt="完成" />
+                          <img src="./data/Complete.png" alt="完成" />
                         </button>
                         <button className="del-btn" onClick={() => handleDeleteSchedule(s.id!)} title="删除">
-                          <img src="/data/Delete.png" alt="删除" />
+                          <img src="./data/Delete.png" alt="删除" />
                         </button>
                       </div>
                     </div>
@@ -745,10 +746,10 @@ export default function App() {
                       </div>
                       <div className="schedule-actions">
                         <button onClick={() => openTemplateModal(t)} title="编辑">
-                          <img src="/data/Edit.png" alt="编辑" />
+                          <img src="./data/Edit.png" alt="编辑" />
                         </button>
                         <button className="del-btn" onClick={() => handleDeleteTemplate(t.id!)} title="删除">
-                          <img src="/data/Delete.png" alt="删除" />
+                          <img src="./data/Delete.png" alt="删除" />
                         </button>
                       </div>
                     </div>
@@ -780,15 +781,15 @@ export default function App() {
                   </div>
                   <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
                     <Button variant="secondary" onClick={() => handleRefreshTimer('sedentary')} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem' }}>
-                      <img src="/data/Refresh.png" alt="Refresh" style={{ width: '16px', height: '16px' }} />
+                      <img src="./data/Refresh.png" alt="Refresh" style={{ width: '16px', height: '16px' }} />
                       <span style={{ fontSize: '0.8rem' }}>重新计时</span>
                     </Button>
                     <Button variant="primary" onClick={handleNextPhase} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem' }}>
-                      <img src="/data/Next.png" alt="Next" style={{ width: '16px', height: '16px', filter: 'invert(1)' }} />
+                      <img src="./data/Next.png" alt="Next" style={{ width: '16px', height: '16px', filter: 'invert(1)' }} />
                       <span style={{ fontSize: '0.8rem' }}>下一阶段</span>
                     </Button>
                     <Button variant="secondary" onClick={() => { loadHealthConfig(); setIsHealthConfigModalOpen(true); }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem' }}>
-                      <img src="/data/TimeEdit.png" alt="Edit" style={{ width: '16px', height: '16px' }} />
+                      <img src="./data/TimeEdit.png" alt="Edit" style={{ width: '16px', height: '16px' }} />
                       <span style={{ fontSize: '0.8rem' }}>编辑时长</span>
                     </Button>
                   </div>
@@ -802,11 +803,11 @@ export default function App() {
                   </div>
                   <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
                     <Button variant="secondary" onClick={() => handleRefreshTimer('eye_care')} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem' }}>
-                      <img src="/data/Refresh.png" alt="Refresh" style={{ width: '16px', height: '16px' }} />
+                      <img src="./data/Refresh.png" alt="Refresh" style={{ width: '16px', height: '16px' }} />
                       <span style={{ fontSize: '0.8rem' }}>重新计时</span>
                     </Button>
                     <Button variant="secondary" onClick={() => { loadHealthConfig(); setIsHealthConfigModalOpen(true); }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem' }}>
-                      <img src="/data/TimeEdit.png" alt="Edit" style={{ width: '16px', height: '16px' }} />
+                      <img src="./data/TimeEdit.png" alt="Edit" style={{ width: '16px', height: '16px' }} />
                       <span style={{ fontSize: '0.8rem' }}>编辑时长</span>
                     </Button>
                   </div>
@@ -858,7 +859,7 @@ export default function App() {
                     style={{ flex: 1, padding: '0.5rem' }}
                     onFocus={async () => {
                       try {
-                        const res = await fetch('http://localhost:8000/running-apps');
+                        const res = await fetch(API_BASE_URL + '/running-apps');
                         const data = await res.json();
                         const select = document.getElementById('newAppName') as HTMLSelectElement;
                         const currentVal = select.value;
@@ -882,7 +883,7 @@ export default function App() {
                   <Button variant="primary" onClick={async () => {
                     const select = document.getElementById('newAppName') as HTMLSelectElement;
                     if (select.value) {
-                      await fetch('http://localhost:8000/whitelist', {
+                      await fetch(API_BASE_URL + '/whitelist', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ app_name: select.value })

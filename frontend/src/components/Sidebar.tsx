@@ -9,12 +9,12 @@ interface SidebarProps {
 
 export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
   const tabs = [
-    { id: 'schedules', icon: '/icons/Doc.png', title: '日程创建' },
-    { id: 'templates', icon: '/icons/Template.png', title: '日程模板' },
-    { id: 'calendar', icon: '/icons/Calendar.png', title: '日程日历' },
-    { id: 'health', icon: '/icons/Clock.png', title: '健康终端' },
-    { id: 'diary', icon: '/icons/Upload.png', title: '日志生成' },
-    { id: 'settings', icon: '/icons/Setting.png', title: '个人中心' }
+    { id: 'schedules', icon: './icons/Doc.png', title: '日程创建' },
+    { id: 'templates', icon: './icons/Template.png', title: '日程模板' },
+    { id: 'calendar', icon: './icons/Calendar.png', title: '日程日历' },
+    { id: 'health', icon: './icons/Clock.png', title: '健康终端' },
+    { id: 'diary', icon: './icons/Upload.png', title: '日志生成' },
+    { id: 'settings', icon: './icons/Setting.png', title: '个人中心' }
   ];
 
   return (
