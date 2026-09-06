@@ -54,6 +54,10 @@ if (!fsSync__namespace.existsSync(appDataPath)) {
 }
 const dataPath = path.join(appDataPath, "schedule_data.json");
 const templatesPath = path.join(appDataPath, "schedule_templates.json");
+const positionsPath = path.join(appDataPath, "widget_positions.json");
+if (!fsSync__namespace.existsSync(positionsPath)) {
+  fsSync__namespace.writeFileSync(positionsPath, JSON.stringify({}));
+}
 if (!fsSync__namespace.existsSync(dataPath)) {
   fsSync__namespace.writeFileSync(dataPath, JSON.stringify([]));
 }
@@ -120,14 +124,23 @@ async function getSchedules(date) {
           date,
           title: tpl.title,
           description: tpl.description,
-          time: tpl.time,
+          importance: tpl.importance,
           type: tpl.type,
           isGenerated: true
         });
       }
     }
   }
-  return [...schedulesForDate, ...generatedSchedules].sort((a, b) => a.time.localeCompare(b.time));
+  const importanceValues = {
+    "必要": 1,
+    "重要": 2,
+    "次要": 3
+  };
+  return [...schedulesForDate, ...generatedSchedules].sort((a, b) => {
+    const valA = importanceValues[a.importance] || 4;
+    const valB = importanceValues[b.importance] || 4;
+    return valA - valB;
+  });
 }
 async function addSchedule(item) {
   const raw = await fs__namespace.readFile(dataPath, "utf-8");
@@ -179,11 +192,35 @@ async function deleteSchedule(id) {
 }
 let win = null;
 let widgetWin = null;
+let calendarWidgetWin = null;
+function saveWidgetPositions() {
+  const pos = {};
+  if (widgetWin && !widgetWin.isDestroyed()) {
+    pos.health = widgetWin.getPosition();
+  }
+  if (calendarWidgetWin && !calendarWidgetWin.isDestroyed()) {
+    pos.calendar = calendarWidgetWin.getPosition();
+  }
+  try {
+    const raw = fsSync__namespace.readFileSync(positionsPath, "utf-8");
+    const existing = JSON.parse(raw);
+    fsSync__namespace.writeFileSync(positionsPath, JSON.stringify({ ...existing, ...pos }, null, 2));
+  } catch (e) {
+  }
+}
+function loadWidgetPositions() {
+  try {
+    const raw = fsSync__namespace.readFileSync(positionsPath, "utf-8");
+    return JSON.parse(raw);
+  } catch (e) {
+    return {};
+  }
+}
 function createWidgetWindow() {
   if (widgetWin) return;
   widgetWin = new electron.BrowserWindow({
     width: 250,
-    height: 150,
+    height: 110,
     frame: false,
     transparent: true,
     alwaysOnTop: false,
@@ -195,14 +232,20 @@ function createWidgetWindow() {
       contextIsolation: true
     }
   });
-  const primaryDisplay = electron.screen.getPrimaryDisplay();
-  const { width } = primaryDisplay.workAreaSize;
-  widgetWin.setPosition(width - 260, 20);
+  const pos = loadWidgetPositions();
+  if (pos.health) {
+    widgetWin.setPosition(pos.health[0], pos.health[1]);
+  } else {
+    const primaryDisplay = electron.screen.getPrimaryDisplay();
+    const { width } = primaryDisplay.workAreaSize;
+    widgetWin.setPosition(width - 260, 20);
+  }
   if (process.env.VITE_DEV_SERVER_URL) {
     widgetWin.loadURL(process.env.VITE_DEV_SERVER_URL + "#/widget");
   } else {
     widgetWin.loadFile(path.join(__dirname, "../dist/index.html"), { hash: "widget" });
   }
+  widgetWin.on("moved", () => saveWidgetPositions());
   widgetWin.on("closed", () => {
     widgetWin = null;
   });
@@ -211,6 +254,46 @@ function createWidgetWindow() {
   });
   widgetWin.on("blur", () => {
     widgetWin == null ? void 0 : widgetWin.setAlwaysOnTop(false);
+  });
+}
+function createCalendarWidgetWindow() {
+  if (calendarWidgetWin) return;
+  calendarWidgetWin = new electron.BrowserWindow({
+    width: 250,
+    height: 200,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: false,
+    skipTaskbar: true,
+    resizable: false,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  });
+  const pos = loadWidgetPositions();
+  if (pos.calendar) {
+    calendarWidgetWin.setPosition(pos.calendar[0], pos.calendar[1]);
+  } else {
+    const primaryDisplay = electron.screen.getPrimaryDisplay();
+    const { width } = primaryDisplay.workAreaSize;
+    calendarWidgetWin.setPosition(width - 260, 150);
+  }
+  if (process.env.VITE_DEV_SERVER_URL) {
+    calendarWidgetWin.loadURL(process.env.VITE_DEV_SERVER_URL + "#/calendar-widget");
+  } else {
+    calendarWidgetWin.loadFile(path.join(__dirname, "../dist/index.html"), { hash: "calendar-widget" });
+  }
+  calendarWidgetWin.on("moved", () => saveWidgetPositions());
+  calendarWidgetWin.on("closed", () => {
+    calendarWidgetWin = null;
+  });
+  calendarWidgetWin.on("focus", () => {
+    calendarWidgetWin == null ? void 0 : calendarWidgetWin.setAlwaysOnTop(true);
+  });
+  calendarWidgetWin.on("blur", () => {
+    calendarWidgetWin == null ? void 0 : calendarWidgetWin.setAlwaysOnTop(false);
   });
 }
 async function getScheduleDates() {
@@ -325,11 +408,15 @@ electron.app.whenReady().then(() => {
   electron.ipcMain.on("toggle-widget", (_, enabled) => {
     if (enabled) {
       createWidgetWindow();
+      createCalendarWidgetWindow();
     } else {
-      if (widgetWin) {
-        widgetWin.close();
-      }
+      if (widgetWin) widgetWin.close();
+      if (calendarWidgetWin) calendarWidgetWin.close();
     }
+  });
+  electron.ipcMain.on("set-widget-click-through", (_, through) => {
+    if (widgetWin) widgetWin.setIgnoreMouseEvents(through, { forward: true });
+    if (calendarWidgetWin) calendarWidgetWin.setIgnoreMouseEvents(through, { forward: true });
   });
   electron.ipcMain.on("set-widget-click-through", (_, through) => {
     if (widgetWin) {

@@ -4,6 +4,14 @@ import { Sidebar, TabType } from './components/Sidebar';
 import { Card } from './components/Card';
 import { Button } from './components/Button';
 import { API_BASE_URL } from './config';
+import CNTitleIcon from './assets/icons/CNTitle.svg';
+import ENTitleIcon from './assets/icons/ENTitle.svg';
+import TodaySchedule from './assets/icons/TodaySchedule.svg';
+import Template from './assets/icons/ScheduleModel.svg';
+import Calendar from './assets/icons/Calendar.svg';
+import Monitor from './assets/icons/HealthMentor.svg';
+import Profile from './assets/icons/UserProfile.svg';
+import TimePauseIcon from './assets/icons/TimePause.png';
 
 declare global {
   interface Window {
@@ -33,7 +41,7 @@ interface Schedule {
   date?: string;
   title: string;
   description: string;
-  time: string;
+  importance: string;
   type?: string; // 工作 | 学习 | 娱乐 | 运动 | 其他
   isGenerated?: boolean;
   is_completed?: boolean;
@@ -43,7 +51,7 @@ interface Template {
   id?: string;
   title: string;
   description: string;
-  time: string;
+  importance: string;
   ruleType: 'daily' | 'weekly' | 'monthly';
   ruleValue?: string;
   type?: string;
@@ -233,7 +241,7 @@ function CalendarView() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative', overflow: 'hidden' }}>
-      <h2 className="tech-heading" style={{ fontSize: '3rem', marginBottom: '2rem' }}>日程日历</h2>
+      <img src={Calendar} alt="日程日历" style={{ width: 'auto', height: '100px', alignSelf: 'flex-start', marginBottom: '1rem' }} />
 
       <div
         style={{ flex: 1, display: 'flex' }}
@@ -339,7 +347,7 @@ export default function App() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
-  const [scheduleForm, setScheduleForm] = useState<Schedule>({ title: '', description: '', time: '12:00', type: '工作' });
+  const [scheduleForm, setScheduleForm] = useState<Schedule>({ title: '', description: '', importance: '重要', type: '工作' });
 
   // Custom Confirm Modal
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean, text: string, onConfirm: () => void, onCancel?: () => void }>({
@@ -354,7 +362,7 @@ export default function App() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
-  const [templateForm, setTemplateForm] = useState<Template>({ title: '', description: '', time: '12:00', ruleType: 'daily', ruleValue: '1' });
+  const [templateForm, setTemplateForm] = useState<Template>({ title: '', description: '', importance: '重要', ruleType: 'daily', ruleValue: '1' });
 
   // --- Auto Upload & Downgrade Mechanism ---
   useEffect(() => {
@@ -371,7 +379,7 @@ export default function App() {
           if (!diaryData.content) {
             // Downgrade: Save raw stats as diary
             const schedulesData = await window.api.getSchedules(lastHandledDate);
-            const scheduleText = schedulesData.map(s => s.time + ' ' + s.title).join('\n');
+            const scheduleText = schedulesData.map(s => s.title + ' (' + s.importance + ')').join('\n');
             const statsRes = await fetch(API_BASE_URL + '/stats');
             const statsData = await statsRes.json();
             const appStatsText = (statsData || []).map((s: any) => s.app_name + ': ' + (s.active_time_seconds || 0) + 's').join('\n');
@@ -406,7 +414,7 @@ export default function App() {
         if (lastUpload !== todayStr) {
           try {
             const schedulesData = await window.api.getSchedules(todayStr);
-            const scheduleText = schedulesData.map(s => s.time + ' ' + s.title).join('\n');
+            const scheduleText = schedulesData.map(s => s.title + ' (' + s.importance + ')').join('\n');
             const statsRes = await fetch(API_BASE_URL + '/stats');
             const statsData = await statsRes.json();
             const appStatsText = (statsData || []).map((s: any) => s.app_name + ': ' + (s.active_time_seconds || 0) + 's').join('\n');
@@ -464,10 +472,10 @@ export default function App() {
   const openScheduleModal = (item?: Schedule) => {
     if (item) {
       setEditingSchedule(item);
-      setScheduleForm({ title: item.title, description: item.description, time: item.time, type: item.type || '工作' });
+      setScheduleForm({ title: item.title, description: item.description, importance: item.importance, type: item.type || '工作' });
     } else {
       setEditingSchedule(null);
-      setScheduleForm({ title: '', description: '', time: '12:00', type: '工作' });
+      setScheduleForm({ title: '', description: '', importance: '重要', type: '工作' });
     }
     setIsScheduleModalOpen(true);
   };
@@ -498,7 +506,7 @@ export default function App() {
       setTemplateForm({ ...item });
     } else {
       setEditingTemplate(null);
-      setTemplateForm({ title: '', description: '', time: '12:00', ruleType: 'daily', ruleValue: '1' });
+      setTemplateForm({ title: '', description: '', importance: '重要', ruleType: 'daily', ruleValue: '1' });
     }
     setIsTemplateModalOpen(true);
   };
@@ -534,6 +542,7 @@ export default function App() {
 
   // --- Health Tracker Logic ---
   const [healthStatus, setHealthStatus] = useState<any>(null);
+  const [isFlashing, setIsFlashing] = useState(false);
   const notifiedEye = useRef(false);
   const prevPhase = useRef<string | null>(null);
   const [isHealthConfigModalOpen, setIsHealthConfigModalOpen] = useState(false);
@@ -593,6 +602,13 @@ export default function App() {
 
         // Handle Notifications
         if (prevPhase.current && prevPhase.current !== data.sedentary.phase) {
+          setIsFlashing(true);
+          setTimeout(() => setIsFlashing(false), 8000);
+          try {
+            const audio = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA"); // tiny beep
+            audio.play();
+          } catch (e) { }
+
           if (Notification.permission === 'granted') {
             const msg = data.sedentary.phase === 'exercise' ? '您已持续坐立很久啦，请站起来活动一下吧！' : '运动时间结束，请回到座位！';
             new Notification('阶段切换提醒', { body: msg });
@@ -601,6 +617,13 @@ export default function App() {
         prevPhase.current = data.sedentary.phase;
 
         if (data.eye_care.time_left === 0 && !notifiedEye.current) {
+          setIsFlashing(true);
+          setTimeout(() => setIsFlashing(false), 8000);
+          try {
+            const audio = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA");
+            audio.play();
+          } catch (e) { }
+
           if (Notification.permission === 'granted') {
             new Notification('用眼提醒', { body: '您已持续办公很长时间了，请眺望远方休息一下！' });
           }
@@ -648,12 +671,25 @@ export default function App() {
     await fetch(API_BASE_URL + '/health/next-phase', { method: 'POST' });
   };
 
+  const handleTogglePause = async () => {
+    if (!healthStatus) return;
+    await fetch(API_BASE_URL + '/health/pause', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paused: !healthStatus.is_paused })
+    });
+  };
+
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: 'var(--bg-base)' }}>
       {/* 纯黑机能风标题栏 */}
       <div className="title-bar">
         <div className="title-bar-brand">
-          <span style={{ color: 'var(--accent-yellow)', fontStyle: 'italic' }}>//</span> DIARY ASSISTANT
+          <img src={CNTitleIcon} alt="// 日程助手" style={{ width: 'auto', height: '15px' }} />
+        </div>
+        <div style={{ position: 'absolute', left: '50%', top: '1%', transform: 'translateX(-50%)' } as any}>
+          <img src={ENTitleIcon} alt="Diary Assistant" style={{ width: 'auto', height: '20px' }} />
         </div>
         <div className="title-bar-controls">
           <button className="title-bar-btn" onClick={() => window.api?.minimize()}>_</button>
@@ -661,6 +697,7 @@ export default function App() {
         </div>
       </div>
 
+      {isFlashing && <div className="health-flash-overlay" />}
       <div className="app-layout">
         <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
 
@@ -669,48 +706,47 @@ export default function App() {
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '2rem' }}>
                 <div>
-                  <h2 className="tech-heading" style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>今日日程</h2>
+                  <img src={TodaySchedule} alt="今日日程" style={{ width: 'auto', height: '100px' }} />
                   <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                     <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ fontFamily: 'var(--font-mono)' }} />
                   </div>
                 </div>
-                <Button variant="primary" onClick={() => openScheduleModal()}>[+] 添加记录</Button>
+                <Button variant="primary" onClick={() => openScheduleModal()} style={{ fontWeight: 'bold' }}>[+] 添加记录 </Button>
               </div>
 
               <Card>
                 <div className="schedule-grid">
                   {schedules.length === 0 ? <p className="mono-text" style={{ color: 'var(--text-dim)' }}>暂无记录</p> : schedules.map(s => (
                     <div key={s.id} className={`schedule-item-tech ${s.is_completed ? 'completed' : ''}`}>
-                      <div className="schedule-time-block">{s.time}</div>
+                      <div className="schedule-time-block">{s.importance.includes('事项') ? s.importance : s.importance + '事项'}</div>
                       <div className="schedule-content">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                          <strong>{s.title}</strong>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <strong style={{ fontSize: '1.2rem', color: '#000' }}>{s.title}</strong>
                           {s.type && (
-                            <span style={{ fontSize: '0.75rem', background: '#E9ECEF', color: '#495057', padding: '2px 8px', borderRadius: '12px' }}>
+                            <span style={{ fontSize: '0.7rem', padding: '2px 8px', background: '#E9ECEF', borderRadius: '12px', color: '#666', fontWeight: 500 }}>
                               {s.type}
                             </span>
                           )}
-                          {s.isGenerated && (
-                            <span style={{ fontSize: '0.75rem', background: 'var(--accent-yellow)', color: 'black', padding: '2px 6px', fontWeight: 'bold' }}>
-                              自动生成
-                            </span>
-                          )}
                         </div>
-                        <p style={{ margin: '0.5rem 0 0', color: 'var(--text-dim)' }}>{s.description}</p>
+                        <div style={{ fontSize: '0.9rem', color: '#888', marginTop: '6px', whiteSpace: 'pre-wrap' }}>
+                          {s.description}
+                        </div>
                       </div>
                       <div className="schedule-actions">
                         <button onClick={() => openScheduleModal(s)} title="编辑">
-                          <img src="./data/Edit.png" alt="编辑" />
+                          <img src="./data/Edit.png" alt="编辑" style={{ width: 'auto', height: '30px' }} />
                         </button>
                         <button onClick={async () => {
                           const updated = { ...s, is_completed: !s.is_completed };
-                          await window.api.updateSchedule(updated);
-                          loadSchedules(date);
+                          // @ts-ignore
+                          if (window.api) await window.api.updateSchedule(updated);
+                          // @ts-ignore
+                          if (typeof loadSchedules !== 'undefined') loadSchedules(date);
                         }} title="完成">
-                          <img src="./data/Complete.png" alt="完成" />
+                          <img src="./data/Complete.png" alt="完成" style={{ width: 'auto', height: '30px' }} />
                         </button>
                         <button className="del-btn" onClick={() => handleDeleteSchedule(s.id!)} title="删除">
-                          <img src="./data/Delete.png" alt="删除" />
+                          <img src="./data/Delete.png" alt="删除" style={{ width: 'auto', height: '30px' }} />
                         </button>
                       </div>
                     </div>
@@ -724,8 +760,8 @@ export default function App() {
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '2rem' }}>
                 <div>
-                  <h2 className="tech-heading" style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>日程模板</h2>
-                  <div className="mono-text" style={{ color: 'var(--text-dim)' }}>管理自动生成的日程规则</div>
+                  <img src={Template} alt="日程模板" style={{ width: 'auto', height: '100px' }} />
+                  <div className="mono-text" style={{ color: 'var(--text-dim)', fontFamily: '汉仪中黑' }}>管理自动生成的日程规则</div>
                 </div>
                 <Button variant="primary" onClick={() => openTemplateModal()}>[+] 添加规则</Button>
               </div>
@@ -734,7 +770,7 @@ export default function App() {
                 <div className="schedule-grid">
                   {templates.length === 0 ? <p className="mono-text" style={{ color: 'var(--text-dim)' }}>暂无规则</p> : templates.map(t => (
                     <div key={t.id} className="schedule-item-tech">
-                      <div className="schedule-time-block">{t.time}</div>
+                      <div className="schedule-time-block">{t.importance}</div>
                       <div className="schedule-content">
                         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                           <strong>{t.title}</strong>
@@ -746,10 +782,10 @@ export default function App() {
                       </div>
                       <div className="schedule-actions">
                         <button onClick={() => openTemplateModal(t)} title="编辑">
-                          <img src="./data/Edit.png" alt="编辑" />
+                          <img src="./data/Edit.png" alt="编辑" style={{ width: 'auto', height: '30px' }} />
                         </button>
                         <button className="del-btn" onClick={() => handleDeleteTemplate(t.id!)} title="删除">
-                          <img src="./data/Delete.png" alt="删除" />
+                          <img src="./data/Delete.png" alt="删除" style={{ width: 'auto', height: '30px' }} />
                         </button>
                       </div>
                     </div>
@@ -761,7 +797,7 @@ export default function App() {
 
           {activeTab === 'health' && (
             <div>
-              <h2 className="tech-heading" style={{ fontSize: '3rem', marginBottom: '2rem' }}>健康监控</h2>
+              <img src={Monitor} alt="健康监控" style={{ width: 'auto', height: '100px' }} />
 
               {Notification.permission === 'denied' && (
                 <div style={{ backgroundColor: 'rgba(255, 69, 58, 0.1)', border: '1px solid var(--accent-red)', color: 'var(--accent-red)', padding: '1rem', borderRadius: '8px', marginBottom: '2rem' }}>
@@ -770,7 +806,7 @@ export default function App() {
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: '3rem', justifyContent: 'center', flexWrap: 'wrap', marginTop: '2rem' }}>
+              <div style={{ display: 'flex', gap: '3rem', justifyContent: 'center', flexWrap: 'wrap', marginTop: '1rem' }}>
                 {/* 久坐计时 */}
                 <Card className="flex-1" style={{ flex: 1, textAlign: 'center', padding: '3rem 2rem', minWidth: '250px' }}>
                   <h3 style={{ color: 'var(--text-dim)', marginBottom: '1.5rem', fontWeight: 500 }}>
@@ -788,6 +824,11 @@ export default function App() {
                       <img src="./data/Next.png" alt="Next" style={{ width: '16px', height: '16px', filter: 'invert(1)' }} />
                       <span style={{ fontSize: '0.8rem' }}>下一阶段</span>
                     </Button>
+                    <Button variant="secondary" onClick={handleTogglePause} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem', border: healthStatus?.is_paused ? '1px solid var(--accent-yellow)' : '1px solid var(--border-color)' }}>
+                      <img src={TimePauseIcon} alt="Pause" style={{ width: '16px', height: '16px', filter: healthStatus?.is_paused ? 'invert(1)' : 'none' }} />
+                      <span style={{ fontSize: '0.8rem', color: healthStatus?.is_paused ? 'var(--accent-yellow)' : 'inherit' }}>{healthStatus?.is_paused ? '已暂停' : '暂停计时'}</span>
+                    </Button>
+
                     <Button variant="secondary" onClick={() => { loadHealthConfig(); setIsHealthConfigModalOpen(true); }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem' }}>
                       <img src="./data/TimeEdit.png" alt="Edit" style={{ width: '16px', height: '16px' }} />
                       <span style={{ fontSize: '0.8rem' }}>编辑时长</span>
@@ -850,9 +891,8 @@ export default function App() {
           {activeTab === 'calendar' && <CalendarView />}
           {activeTab === 'settings' && (
             <div>
-              <h2 className="tech-heading" style={{ fontSize: '3rem', marginBottom: '2rem' }}>个人中心</h2>
-
-              <Card title="应用白名单管理" style={{ marginBottom: '2rem' }}>
+              <img src={Profile} alt="个人中心" style={{ width: 'auto', height: '100px' }} />
+              <Card title="应用白名单管理" style={{ marginTop: '1rem', marginBottom: '2rem' }}>
                 <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', alignItems: 'center' }}>
                   <select
                     id="newAppName"
@@ -949,8 +989,12 @@ export default function App() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div style={{ display: 'flex', gap: '1rem' }}>
                   <div style={{ flex: 1 }}>
-                    <label className="mono-text" style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-dim)' }}>时间</label>
-                    <input type="time" value={scheduleForm.time} onChange={e => setScheduleForm({ ...scheduleForm, time: e.target.value })} style={{ width: '100%', marginTop: '0.25rem' }} />
+                    <label className="mono-text" style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-dim)' }}>重要性</label>
+                    <select value={scheduleForm.importance} onChange={e => setScheduleForm({ ...scheduleForm, importance: e.target.value })} style={{ width: '100%', marginTop: '0.25rem' }}>
+                      <option value="必要">必要</option>
+                      <option value="重要">重要</option>
+                      <option value="次要">次要</option>
+                    </select>
                   </div>
                   <div style={{ flex: 1 }}>
                     <label className="mono-text" style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-dim)' }}>类型</label>
@@ -1053,8 +1097,12 @@ export default function App() {
 
                 <div style={{ display: 'flex', gap: '1rem' }}>
                   <div style={{ flex: 1 }}>
-                    <label className="mono-text" style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-dim)' }}>时间</label>
-                    <input type="time" value={templateForm.time} onChange={e => setTemplateForm({ ...templateForm, time: e.target.value })} style={{ width: '100%', marginTop: '0.25rem' }} />
+                    <label className="mono-text" style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-dim)' }}>重要性</label>
+                    <select value={templateForm.importance} onChange={e => setTemplateForm({ ...templateForm, importance: e.target.value })} style={{ width: '100%', marginTop: '0.25rem' }}>
+                      <option value="必要">必要</option>
+                      <option value="重要">重要</option>
+                      <option value="次要">次要</option>
+                    </select>
                   </div>
                   <div style={{ flex: 1 }}>
                     <label className="mono-text" style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-dim)' }}>类型</label>

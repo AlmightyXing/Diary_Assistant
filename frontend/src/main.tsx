@@ -2,12 +2,15 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import Widget from './Widget'
+import CalendarWidget from './CalendarWidget'
 import './index.css'
 
-const isWidget = window.location.hash === '#/widget' || window.location.hash === '#widget';
+const hash = window.location.hash;
+const isWidget = hash === '#/widget' || hash === '#widget';
+const isCalendarWidget = hash === '#/calendar-widget' || hash === '#calendar-widget';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    {isWidget ? <Widget /> : <App />}
+    {isCalendarWidget ? <CalendarWidget /> : (isWidget ? <Widget /> : <App />)}
   </React.StrictMode>
 )

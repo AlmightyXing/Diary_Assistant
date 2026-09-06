@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Card } from './components/Card';
 import { Button } from './components/Button';
 import { API_BASE_URL } from './config';
+import UploadIcon from './assets/icons/DataUpload.png'
+import Diary from './assets/icons/DIARY.svg';
 
 export default function DiaryPanel({ date, schedules }: { date: string, schedules: any[] }) {
   const [appStats, setAppStats] = useState<any[]>([]);
@@ -15,7 +17,7 @@ export default function DiaryPanel({ date, schedules }: { date: string, schedule
       .then(r => r.json())
       .then(data => setAppStats(data))
       .catch(e => console.error(e));
-      
+
     fetch(API_BASE_URL + '/diary/' + date)
       .then(r => r.json())
       .then(data => {
@@ -30,7 +32,7 @@ export default function DiaryPanel({ date, schedules }: { date: string, schedule
       .catch(e => console.error(e));
   }, [date]);
 
-  const scheduleText = schedules.map(s => s.time + ' ' + s.title).join('\n');
+  const scheduleText = schedules.map(s => s.title + ' (' + s.importance + ')').join('\n');
   const appStatsText = appStats.map(s => s.app_name + ': ' + (s.active_time_seconds || 0) + 's').join('\n');
 
   const generateDraft = async () => {
@@ -68,8 +70,8 @@ export default function DiaryPanel({ date, schedules }: { date: string, schedule
 
   return (
     <div>
-      <h2 className="tech-heading" style={{ fontSize: '3rem', marginBottom: '2rem' }}>日志生成</h2>
-      
+      <img src={Diary} alt="今日日程" style={{ width: 'auto', height: '100px', marginBottom: '1rem' }} />
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginBottom: '2rem' }}>
         <Card title="当日日程">
           <pre className="mono-text" style={{ whiteSpace: 'pre-wrap', color: 'var(--text-dim)', margin: 0, minHeight: '100px' }}>
@@ -84,14 +86,19 @@ export default function DiaryPanel({ date, schedules }: { date: string, schedule
       </div>
 
       <div style={{ marginBottom: '2rem' }}>
-        <Button variant="primary" onClick={() => setIsConfirmOpen(true)} disabled={isGenerating}>
-          {isGenerating ? '[ 处理中... ]' : (savedDiary ? '[ 重新生成 ]' : '[ 生成草稿 ]')}
+        <Button variant="primary" onClick={() => setIsConfirmOpen(true)} disabled={isGenerating} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {isGenerating ? '[ 处理中... ]' : (
+            <>
+              {savedDiary ? '重新生成' : '生成草稿'}
+              <img src={UploadIcon} alt="Upload" style={{ width: '20px', height: '20px' }} />
+            </>
+          )}
         </Button>
         {isConfirmOpen && (
           <div className="modal-overlay">
-            <div className="modal-content" style={{ 
-              border: '4px solid #FF0000', 
-              background: '#000000', 
+            <div className="modal-content" style={{
+              border: '4px solid #FF0000',
+              background: '#000000',
               color: '#FFFFFF',
               boxShadow: '0 0 20px rgba(255, 0, 0, 0.5)',
               position: 'relative'
@@ -103,8 +110,8 @@ export default function DiaryPanel({ date, schedules }: { date: string, schedule
               }}></div>
               <h3 className="tech-heading" style={{ color: '#FF0000', marginTop: '1rem', marginBottom: '1rem', textShadow: '0 0 5px #FF0000' }}>// 危险操作确认</h3>
               <p className="mono-text" style={{ marginBottom: '2rem', lineHeight: '1.5', color: '#FFD700' }}>
-                WARNING: 数据传输至外部 LLM 接口。<br/>
-                您的隐私日程和应用使用数据将被发送。<br/>
+                WARNING: 数据传输至外部 LLM 接口。<br />
+                您的隐私日程和应用使用数据将被发送。<br />
                 是否确认执行？
               </p>
               <div style={{ display: 'flex', gap: '1rem' }}>
@@ -118,11 +125,11 @@ export default function DiaryPanel({ date, schedules }: { date: string, schedule
 
       {draft && (
         <Card title="编辑终端">
-          <textarea 
+          <textarea
             className="mono-text"
-            style={{ 
-              width: '100%', 
-              height: '300px', 
+            style={{
+              width: '100%',
+              height: '300px',
               resize: 'vertical',
               backgroundColor: 'var(--bg-panel)',
               color: 'var(--text-main)',

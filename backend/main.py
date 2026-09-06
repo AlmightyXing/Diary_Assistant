@@ -1,4 +1,5 @@
 import time
+import datetime
 import win32gui
 import win32api
 import threading
@@ -21,7 +22,7 @@ load_dotenv()
 
 import pygetwindow as gw
 import sys
-import os
+import glob
 
 if getattr(sys, 'frozen', False):
     # Pyinstaller executable
@@ -95,6 +96,7 @@ class HealthTracker:
         self.sedentary_left = self.sedentary_duration
         self.eye_care_left = self.eye_care_total
         self.is_suspended = False
+        self.is_paused = False
 
     def load_settings(self):
         try:
@@ -129,6 +131,9 @@ class HealthTracker:
         conn.close()
 
     def tick(self, dt):
+        if self.is_paused:
+            return
+
         idle_time_ms = win32api.GetTickCount() - win32api.GetLastInputInfo()
         if idle_time_ms >= self.idle_threshold:
             self.is_suspended = True
@@ -165,10 +170,24 @@ health_tracker = HealthTracker()
 
 def tracking_loop():
     last_checked = time.time()
+    last_date = datetime.date.today()
+    
     while True:
         now = time.time()
         dt = now - last_checked
         last_checked = now
+        
+        current_date = datetime.date.today()
+        if current_date != last_date:
+            try:
+                conn = sqlite3.connect(DB_FILE)
+                cursor = conn.cursor()
+                cursor.execute('DELETE FROM app_stats')
+                conn.commit()
+                conn.close()
+            except Exception as e:
+                print(f"Error resetting daily stats: {e}")
+            last_date = current_date
         
         try:
             health_tracker.tick(dt)
@@ -267,25 +286,29 @@ def remove_whitelist(item: WhitelistItem):
     conn.close()
     return {"status": "success", "app_name": item.app_name}
 
-@app.get("/running-apps")
-def get_running_apps():
+@app.get("/installed-apps")
+def get_installed_apps():
     apps = set()
     try:
-        windows = gw.getAllTitles()
-        for title in windows:
-            if title.strip():
-                parts = title.split('-')
-                app_name = parts[-1].strip()
-                if app_name:
-                    apps.add(app_name)
+        paths = [
+            os.path.join(os.environ.get('ProgramData', 'C:\\ProgramData'), 'Microsoft\\Windows\\Start Menu\\Programs\\**\\*.lnk'),
+            os.path.join(os.environ.get('APPDATA', ''), 'Microsoft\\Windows\\Start Menu\\Programs\\**\\*.lnk')
+        ]
+        for p in paths:
+            for lnk in glob.glob(p, recursive=True):
+                basename = os.path.basename(lnk)
+                name, _ = os.path.splitext(basename)
+                if name.lower() not in ['卸载', 'uninstall', 'setup', '安装']:
+                    apps.add(name)
     except Exception as e:
-        print(f"Error enumerating windows: {e}")
+        print(f"Error enumerating start menu: {e}")
     return {"running_apps": sorted(list(apps))}
 
 @app.get("/health/status")
 def get_health_status():
     return {
         "is_suspended": health_tracker.is_suspended,
+        "is_paused": health_tracker.is_paused,
         "sedentary": {
             "phase": health_tracker.phase,
             "time_left": int(health_tracker.sedentary_left),
@@ -309,6 +332,14 @@ def refresh_health(req: TimerActionReq):
 def next_health_phase():
     health_tracker.next_phase()
     return {"status": "success"}
+
+class PauseReq(BaseModel):
+    paused: bool
+
+@app.post("/health/pause")
+def set_health_pause(req: PauseReq):
+    health_tracker.is_paused = req.paused
+    return {"status": "success", "is_paused": health_tracker.is_paused}
 
 class HealthConfigReq(BaseModel):
     sedentary_minutes: int
@@ -348,15 +379,21 @@ def generate_diary(req: DiaryDraftRequest):
     try:
         api_key = req.api_key or os.environ.get("OPENAI_API_KEY") or os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("API_KEY")
         if api_key:
-            base_url = os.environ.get("BASE_URL", "https://api.openai.com/v1")
+            base_url = os.environ.get("BASE_URL")
+            model_name = os.environ.get("LLM_MODEL", "deepseek-chat")
+            
+            if not base_url:
+                if model_name.startswith("deepseek"):
+                    base_url = "https://api.deepseek.com/v1"
+                else:
+                    base_url = "https://api.openai.com/v1"
+
             # 兼容完整的 completions url 或只填写 baseUrl
             if not base_url.endswith("/chat/completions"):
                 url = f"{base_url.rstrip('/')}/chat/completions"
             else:
                 url = base_url
             
-            # 默认使用 deepseek-chat，也可以在 .env 中通过 LLM_MODEL 配置
-            model_name = os.environ.get("LLM_MODEL", "deepseek-chat")
             data = {
                 "model": model_name,
                 "messages": [
