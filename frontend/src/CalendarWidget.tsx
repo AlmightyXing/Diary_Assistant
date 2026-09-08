@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import './index.css';
-import { API_BASE_URL } from './config';
 
 export default function CalendarWidget() {
   const [schedules, setSchedules] = useState<any[]>([]);

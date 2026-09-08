@@ -364,9 +364,14 @@ def update_health_config(req: HealthConfigReq):
     return {"status": "success"}
 
 class DiaryDraftRequest(BaseModel):
+    date: str
     schedule_text: str
     app_stats_text: str
     api_key: str | None = None
+    weather: str | None = "不提及"
+    mood: str | None = "常规"
+    style: str | None = "常规"
+    length: str | None = "常规"
 
 class DiarySaveRequest(BaseModel):
     date: str
@@ -374,8 +379,47 @@ class DiarySaveRequest(BaseModel):
 
 @app.post("/generate-diary")
 def generate_diary(req: DiaryDraftRequest):
-    prompt = f"请根据以下日程和应用使用情况写一篇日记：\n【日程】\n{req.schedule_text}\n【应用记录】\n{req.app_stats_text}"
-    draft = f"【AI初稿】\n今天我完成了一些日程，主要包括：\n{req.schedule_text}\n\n此外，我使用了一些应用程序：\n{req.app_stats_text}\n\n总的来说，这是充实的一天！"
+    # Length mapping
+    length_map = {
+        "简略": "字数控制在 150 字以内。排版要求：请仅输出一小段连贯顺畅的纯文本，不要使用任何项目符号、分割线或多余的换行。",
+        "常规": "字数控制在 300-500 字。排版要求：以标准的日记格式输出，分为 3-4 个自然段落依次叙述，段落间自然过渡，绝对不要使用 Markdown 分割线。",
+        "详细": "字数不少于 800 字。排版要求：文章需分为多个长篇幅自然段，充分发挥想象力补充细节。允许使用 Markdown 分割线（---）来区隔不同阶段，可适当使用加粗（**）强调重点。",
+        "重点罗列": "不追求文学叙事性。排版要求：请采用清晰的 Markdown 项目符号（如 - ），将全天的核心日程与各项应用数据以结构化清单形式逐条列出。"
+    }
+    
+    # Style mapping
+    style_map = {
+        "常规": "采用自然、平和的日常语言写作，如同随手记下的流水账，避免夸张修辞。",
+        "活泼": "语调轻松欢快，像跟好朋友分享日常。请适度穿插少量符合语境的 Emoji（每段不超过1-2个），点到为止。",
+        "严肃": "采用沉稳、内敛、成熟的语气。用词讲究，侧重于复盘反思。绝对禁止使用任何 Emoji，标点符号规范严谨。",
+        "报告风格": "剥离主观情绪，以极度客观、工作汇报式的口吻陈述事实。语言冷静克制，逻辑严密。"
+    }
+    
+    # Header mapping
+    if req.weather and req.weather != "不提及":
+        header_instruction = f"请在日记的绝对第一行，按以下固定格式输出日期与天气信息（不要加粗等任何额外格式），并空一行后再开始正文：\n{req.date}    天气：{req.weather}"
+    else:
+        header_instruction = f"请在日记的绝对第一行，单独输出日期，并空一行后再开始正文：\n{req.date}"
+
+    # Mood mapping
+    mood_instruction = ""
+    if req.mood and req.mood != "常规":
+        mood_instruction = f"今天我的心情底色是：【{req.mood}】。请以这种情绪作为全局滤镜，来重新解读和审视全天的各项日程和应用使用情况，将其自然渗透在字里行间的感悟中。\n"
+    
+    len_inst = length_map.get(req.length, length_map["常规"])
+    style_inst = style_map.get(req.style, style_map["常规"])
+
+    prompt = (
+        f"请以【{req.date}】为当前的日记日期，根据以下日程和应用使用情况写一篇日记。\n\n"
+        f"【输出格式与头部要求】\n{header_instruction}\n\n"
+        f"【排版与长短约束】\n{len_inst}\n\n"
+        f"【词汇与行文风格】\n{style_inst}\n\n"
+        f"【底层情绪滤镜】\n{mood_instruction}\n"
+        f"【日程】\n{req.schedule_text}\n"
+        f"【应用记录】\n{req.app_stats_text}"
+    )
+
+    draft = f"【AI初稿 - {req.date}】\n今天我完成了一些日程，主要包括：\n{req.schedule_text}\n\n此外，我使用了一些应用程序：\n{req.app_stats_text}\n\n总的来说，这是充实的一天！"
     try:
         api_key = req.api_key or os.environ.get("OPENAI_API_KEY") or os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("API_KEY")
         if api_key:

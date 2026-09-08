@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, Tray, Menu, screen } from 'electron'
+import { app, BrowserWindow, net, ipcMain, dialog, Tray, Menu, screen } from 'electron'
 import { join } from 'path'
 import * as fs from 'fs/promises'
 import * as fsSync from 'fs'
@@ -250,6 +250,7 @@ function createWidgetWindow() {
       preload: join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
+      backgroundThrottling: false,
     }
   });
 
@@ -288,6 +289,7 @@ function createCalendarWidgetWindow() {
       preload: join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
+      backgroundThrottling: false,
     }
   });
 
@@ -340,10 +342,133 @@ function setupTray() {
       win.show()
       win.focus()
     } else {
-      createWindow()
+    
+  createWindow()
+
     }
   })
 }
+
+
+// --- Main Process Health Polling ---
+let flashWin: BrowserWindow | null = null;
+let notifiedEye = false;
+let prevPhase: string | null = null;
+
+function triggerFlashAndBeep() {
+  if (flashWin && !flashWin.isDestroyed()) return;
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { x, y, width, height } = primaryDisplay.bounds;
+  flashWin = new BrowserWindow({
+    x, y, width, height,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    hasShadow: false,
+    focusable: false,
+    webPreferences: { nodeIntegration: false }
+  });
+  flashWin.setIgnoreMouseEvents(true, { forward: true });
+  flashWin.setAlwaysOnTop(true, 'screen-saver', 1);
+
+  const html = `
+    <html>
+      <head>
+        <style>
+          body {
+            margin: 0; padding: 0; overflow: hidden; background: transparent;
+            box-sizing: border-box;
+            border: 20px solid rgba(0, 255, 0, 0);
+            animation: breathe 1s infinite alternate;
+          }
+          @keyframes breathe {
+            0% { border-color: rgba(0, 255, 0, 0.1); box-shadow: inset 0 0 50px rgba(0, 255, 0, 0.1); }
+            100% { border-color: rgba(0, 255, 0, 0.8); box-shadow: inset 0 0 100px rgba(0, 255, 0, 0.6); }
+          }
+        </style>
+      </head>
+      <body>
+        <script>
+          const playAlarmBeep = () => {
+            try {
+              const ctx = new (window.AudioContext || window.webkitAudioContext)();
+              const osc = ctx.createOscillator();
+              const gain = ctx.createGain();
+              osc.connect(gain);
+              gain.connect(ctx.destination);
+              osc.type = 'square';
+              osc.frequency.setValueAtTime(800, ctx.currentTime);
+              gain.gain.setValueAtTime(0, ctx.currentTime);
+              
+              gain.gain.setValueAtTime(0.1, ctx.currentTime + 0.1);
+              gain.gain.setValueAtTime(0, ctx.currentTime + 0.3);
+              
+              gain.gain.setValueAtTime(0.1, ctx.currentTime + 0.4);
+              gain.gain.setValueAtTime(0, ctx.currentTime + 0.6);
+              
+              gain.gain.setValueAtTime(0.1, ctx.currentTime + 0.7);
+              gain.gain.setValueAtTime(0, ctx.currentTime + 0.9);
+
+              osc.start(ctx.currentTime);
+              osc.stop(ctx.currentTime + 1.0);
+            } catch(e) { console.error("Audio play failed", e); }
+          };
+          playAlarmBeep();
+        </script>
+      </body>
+    </html>
+  `;
+  flashWin.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+  
+  setTimeout(() => {
+    if (flashWin && !flashWin.isDestroyed()) {
+      flashWin.close();
+      flashWin = null;
+    }
+  }, 8500);
+}
+
+function handleHealthStatus(data: any) {
+  if (prevPhase && prevPhase !== data.sedentary.phase) {
+    triggerFlashAndBeep();
+  }
+  prevPhase = data.sedentary.phase;
+
+  if (data.eye_care.time_left === 0 && !notifiedEye) {
+    triggerFlashAndBeep();
+    notifiedEye = true;
+    
+    const req = net.request({
+      method: 'POST',
+      url: 'http://127.0.0.1:8000/health/refresh'
+    });
+    req.setHeader('Content-Type', 'application/json');
+    req.write(JSON.stringify({ timer_type: 'eye_care' }));
+    req.end();
+  } else if (data.eye_care.time_left > 0) {
+    notifiedEye = false;
+  }
+}
+
+function pollHealth() {
+  const request = net.request('http://127.0.0.1:8000/health/status');
+  request.on('response', (response) => {
+    let data = '';
+    response.on('data', (chunk) => { data += chunk; });
+    response.on('end', () => {
+      try {
+        const status = JSON.parse(data);
+        handleHealthStatus(status);
+      } catch(e) {}
+    });
+  });
+  request.on('error', () => {});
+  request.end();
+}
+
+// Start polling
+setInterval(pollHealth, 1000);
 
 function createWindow() {
   win = new BrowserWindow({
@@ -354,6 +479,7 @@ function createWindow() {
       preload: join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
+      backgroundThrottling: false,
     },
   })
 
@@ -412,7 +538,9 @@ app.whenReady().then(() => {
       win.focus();
       win.webContents.send('navigate-to', tab);
     } else {
-      createWindow();
+    
+  createWindow()
+;
       if (win) {
         win.webContents.once('did-finish-load', () => {
           setTimeout(() => {
@@ -426,12 +554,18 @@ app.whenReady().then(() => {
   });
 
 
-  ipcMain.on('toggle-widget', (_, enabled) => {
+  ipcMain.on('toggle-health-widget', (_, enabled) => {
     if (enabled) {
       createWidgetWindow();
-      createCalendarWidgetWindow();
     } else {
       if (widgetWin) widgetWin.close();
+    }
+  });
+
+  ipcMain.on('toggle-calendar-widget', (_, enabled) => {
+    if (enabled) {
+      createCalendarWidgetWindow();
+    } else {
       if (calendarWidgetWin) calendarWidgetWin.close();
     }
   });
@@ -447,7 +581,9 @@ app.whenReady().then(() => {
     }
   });
 
+
   createWindow()
+
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

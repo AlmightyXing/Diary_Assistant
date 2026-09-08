@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import DiaryPanel from './DiaryPanel';
 import { Sidebar, TabType } from './components/Sidebar';
 import { Card } from './components/Card';
 import { Button } from './components/Button';
-import { API_BASE_URL } from './config';
+import { API_BASE_URL, formatDuration } from './config';
 import CNTitleIcon from './assets/icons/CNTitle.svg';
 import ENTitleIcon from './assets/icons/ENTitle.svg';
 import TodaySchedule from './assets/icons/TodaySchedule.svg';
@@ -28,6 +28,8 @@ declare global {
       minimize: () => void;
       close: () => void;
       toggleWidget: (enabled: boolean) => void;
+      toggleHealthWidget: (enabled: boolean) => void;
+      toggleCalendarWidget: (enabled: boolean) => void;
       setWidgetClickThrough: (through: boolean) => void;
       wakeUpMain: (tab: string) => void;
       onNavigateTo: (callback: (tab: string) => void) => void;
@@ -61,6 +63,7 @@ const SCHEDULE_TYPES = ['工作', '学习', '娱乐', '运动', '其他'];
 
 function WhitelistRenderer() {
   const [whitelist, setWhitelist] = useState<string[]>([]);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const loadWhitelist = async () => {
     try {
@@ -92,14 +95,23 @@ function WhitelistRenderer() {
     }
   };
 
+  const displayList = isExpanded ? whitelist : whitelist.slice(0, 3);
+  const hasMore = whitelist.length > 3;
+
   return (
     <>
-      {whitelist.length === 0 ? <p className="mono-text" style={{ color: 'var(--text-dim)' }}>暂无白名单应用</p> : whitelist.map(app => (
-        <div key={app} className="schedule-item-tech" style={{ padding: '0.5rem 1rem', alignItems: 'center' }}>
+      {whitelist.length === 0 ? <p className="mono-text" style={{ color: 'var(--text-dim)' }}>暂无应用</p> : displayList.map(app => (
+        <div key={app} className="schedule-item-tech" style={{ padding: '0.5rem 1rem', alignItems: 'center', marginBottom: '0.5rem' }}>
           <strong>{app}</strong>
           <button className="del-btn" style={{ background: 'transparent', border: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontWeight: 'bold' }} onClick={() => removeApp(app)}>移除</button>
         </div>
       ))}
+      {!isExpanded && hasMore && (
+         <Button variant="secondary" onClick={() => setIsExpanded(true)} style={{ marginTop: '0.5rem', width: '100%', display: 'block', textAlign: 'center' }}>点击查看全部</Button>
+      )}
+      {isExpanded && hasMore && (
+         <Button variant="secondary" onClick={() => setIsExpanded(false)} style={{ marginTop: '0.5rem', width: '100%', display: 'block', textAlign: 'center' }}>收起列表</Button>
+      )}
     </>
   );
 }
@@ -161,7 +173,13 @@ function WidgetSettings() {
   const toggleEnabled = (val: boolean) => {
     setEnabled(val);
     localStorage.setItem('widget_enabled', String(val));
-    window.api.toggleWidget(val);
+    if (val) {
+      window.api.toggleHealthWidget(comps.includes('health'));
+      window.api.toggleCalendarWidget(comps.includes('schedules'));
+    } else {
+      window.api.toggleHealthWidget(false);
+      window.api.toggleCalendarWidget(false);
+    }
   };
 
   const toggleClickThrough = (val: boolean) => {
@@ -174,7 +192,10 @@ function WidgetSettings() {
     const next = checked ? [...comps, comp] : comps.filter(c => c !== comp);
     setComps(next);
     localStorage.setItem('widget_components', JSON.stringify(next));
-    window.dispatchEvent(new Event('storage'));
+    if (enabled) {
+      if (comp === 'health') window.api.toggleHealthWidget(checked);
+      if (comp === 'schedules') window.api.toggleCalendarWidget(checked);
+    }
   };
 
   return (
@@ -337,7 +358,7 @@ function CalendarView() {
       </div>
     </div>
   );
-}
+  }
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('schedules');
@@ -347,7 +368,7 @@ export default function App() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
-  const [scheduleForm, setScheduleForm] = useState<Schedule>({ title: '', description: '', importance: '重要', type: '工作' });
+  const [scheduleForm, setScheduleForm] = useState<Schedule>({ title: '', description: '', importance: '重要', type: '工作', date: new Date().toISOString().split('T')[0] });
 
   // Custom Confirm Modal
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean, text: string, onConfirm: () => void, onCancel?: () => void }>({
@@ -379,10 +400,10 @@ export default function App() {
           if (!diaryData.content) {
             // Downgrade: Save raw stats as diary
             const schedulesData = await window.api.getSchedules(lastHandledDate);
-            const scheduleText = schedulesData.map(s => s.title + ' (' + s.importance + ')').join('\n');
+            const scheduleText = schedulesData.map(s => s.title + ' (' + s.importance + ')' + (s.description ? ' - 备注: ' + s.description : '')).join('\n');
             const statsRes = await fetch(API_BASE_URL + '/stats');
             const statsData = await statsRes.json();
-            const appStatsText = (statsData || []).map((s: any) => s.app_name + ': ' + (s.active_time_seconds || 0) + 's').join('\n');
+            const appStatsText = (statsData || []).map((s: any) => s.app_name + ': ' + formatDuration(s.active_time_seconds || 0)).join('\n');
 
             const downgradeContent = `【保底降级日记 - ${lastHandledDate}】\n\n[日程]\n${scheduleText || '无'}\n\n[应用使用]\n${appStatsText || '无'}\n\n// 自动转储生数据`;
             await fetch(API_BASE_URL + '/save-diary', {
@@ -414,15 +435,15 @@ export default function App() {
         if (lastUpload !== todayStr) {
           try {
             const schedulesData = await window.api.getSchedules(todayStr);
-            const scheduleText = schedulesData.map(s => s.title + ' (' + s.importance + ')').join('\n');
+            const scheduleText = schedulesData.map(s => s.title + ' (' + s.importance + ')' + (s.description ? ' - 备注: ' + s.description : '')).join('\n');
             const statsRes = await fetch(API_BASE_URL + '/stats');
             const statsData = await statsRes.json();
-            const appStatsText = (statsData || []).map((s: any) => s.app_name + ': ' + (s.active_time_seconds || 0) + 's').join('\n');
+            const appStatsText = (statsData || []).map((s: any) => s.app_name + ': ' + formatDuration(s.active_time_seconds || 0)).join('\n');
 
             const genRes = await fetch(API_BASE_URL + '/generate-diary', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ schedule_text: scheduleText, app_stats_text: appStatsText, api_key: localStorage.getItem('deepseek_api_key') || null })
+              body: JSON.stringify({ date: todayStr, schedule_text: scheduleText, app_stats_text: appStatsText, api_key: localStorage.getItem('deepseek_api_key') || null })
             });
             const genData = await genRes.json();
 
@@ -472,10 +493,10 @@ export default function App() {
   const openScheduleModal = (item?: Schedule) => {
     if (item) {
       setEditingSchedule(item);
-      setScheduleForm({ title: item.title, description: item.description, importance: item.importance, type: item.type || '工作' });
+      setScheduleForm({ title: item.title, description: item.description, importance: item.importance, type: item.type || '工作', date: item.date || date });
     } else {
       setEditingSchedule(null);
-      setScheduleForm({ title: '', description: '', importance: '重要', type: '工作' });
+      setScheduleForm({ title: '', description: '', importance: '重要', type: '工作', date: new Date().toISOString().split('T')[0] });
     }
     setIsScheduleModalOpen(true);
   };
@@ -483,7 +504,7 @@ export default function App() {
 
   const handleSaveSchedule = async () => {
     if (!scheduleForm.title) return;
-    const itemToSave = { ...scheduleForm, date };
+    const itemToSave = { ...scheduleForm, date: scheduleForm.date || date };
     if (editingSchedule && editingSchedule.id) {
       await window.api.updateSchedule({ ...itemToSave, id: editingSchedule.id });
     } else {
@@ -542,9 +563,6 @@ export default function App() {
 
   // --- Health Tracker Logic ---
   const [healthStatus, setHealthStatus] = useState<any>(null);
-  const [isFlashing, setIsFlashing] = useState(false);
-  const notifiedEye = useRef(false);
-  const prevPhase = useRef<string | null>(null);
   const [isHealthConfigModalOpen, setIsHealthConfigModalOpen] = useState(false);
   const [healthConfig, setHealthConfig] = useState({ sedentary_minutes: 45, exercise_minutes: 5, eye_care_minutes: 20 });
 
@@ -582,7 +600,9 @@ export default function App() {
     // Initialize Widget
     const widgetEnabled = localStorage.getItem('widget_enabled') === 'true';
     if (widgetEnabled) {
-      window.api.toggleWidget(true);
+      const compsInit = JSON.parse(localStorage.getItem('widget_components') || '["health", "schedules"]');
+      window.api.toggleHealthWidget(compsInit.includes('health'));
+      window.api.toggleCalendarWidget(compsInit.includes('schedules'));
       const widgetClickThrough = localStorage.getItem('widget_click_through') === 'true';
       if (widgetClickThrough) {
         window.api.setWidgetClickThrough(true);
@@ -599,45 +619,6 @@ export default function App() {
         const res = await fetch(API_BASE_URL + '/health/status');
         const data = await res.json();
         setHealthStatus(data);
-
-        // Handle Notifications
-        if (prevPhase.current && prevPhase.current !== data.sedentary.phase) {
-          setIsFlashing(true);
-          setTimeout(() => setIsFlashing(false), 8000);
-          try {
-            const audio = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA"); // tiny beep
-            audio.play();
-          } catch (e) { }
-
-          if (Notification.permission === 'granted') {
-            const msg = data.sedentary.phase === 'exercise' ? '您已持续坐立很久啦，请站起来活动一下吧！' : '运动时间结束，请回到座位！';
-            new Notification('阶段切换提醒', { body: msg });
-          }
-        }
-        prevPhase.current = data.sedentary.phase;
-
-        if (data.eye_care.time_left === 0 && !notifiedEye.current) {
-          setIsFlashing(true);
-          setTimeout(() => setIsFlashing(false), 8000);
-          try {
-            const audio = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA");
-            audio.play();
-          } catch (e) { }
-
-          if (Notification.permission === 'granted') {
-            new Notification('用眼提醒', { body: '您已持续办公很长时间了，请眺望远方休息一下！' });
-          }
-          notifiedEye.current = true;
-          // 倒计时结束后自动刷新重置
-          fetch(API_BASE_URL + '/health/refresh', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ timer_type: 'eye_care' })
-          });
-        } else if (data.eye_care.time_left > 0) {
-          notifiedEye.current = false;
-        }
-
       } catch (e) {
         // Backend not running
         checkTimer = setTimeout(fetchHealth, 5000);
@@ -697,7 +678,7 @@ export default function App() {
         </div>
       </div>
 
-      {isFlashing && <div className="health-flash-overlay" />}
+
       <div className="app-layout">
         <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
 
@@ -899,7 +880,7 @@ export default function App() {
                     style={{ flex: 1, padding: '0.5rem' }}
                     onFocus={async () => {
                       try {
-                        const res = await fetch(API_BASE_URL + '/running-apps');
+                        const res = await fetch(API_BASE_URL + '/installed-apps');
                         const data = await res.json();
                         const select = document.getElementById('newAppName') as HTMLSelectElement;
                         const currentVal = select.value;
@@ -988,6 +969,10 @@ export default function App() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div style={{ display: 'flex', gap: '1rem' }}>
+                  <div style={{ flex: 1 }}>
+                    <label className="mono-text" style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-dim)' }}>日程日期</label>
+                    <input type="date" value={scheduleForm.date || ''} onChange={e => setScheduleForm({ ...scheduleForm, date: e.target.value })} style={{ width: '100%', marginTop: '0.25rem', fontFamily: 'var(--font-mono)', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} />
+                  </div>
                   <div style={{ flex: 1 }}>
                     <label className="mono-text" style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-dim)' }}>重要性</label>
                     <select value={scheduleForm.importance} onChange={e => setScheduleForm({ ...scheduleForm, importance: e.target.value })} style={{ width: '100%', marginTop: '0.25rem' }}>

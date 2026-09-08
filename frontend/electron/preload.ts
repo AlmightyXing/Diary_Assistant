@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.removeAllListeners('navigate-to');
     ipcRenderer.on('navigate-to', (_, tab) => callback(tab));
   },
-  toggleWidget: (enabled: boolean) => ipcRenderer.send('toggle-widget', enabled),
+  toggleHealthWidget: (enabled: boolean) => ipcRenderer.send('toggle-health-widget', enabled),
+  toggleCalendarWidget: (enabled: boolean) => ipcRenderer.send('toggle-calendar-widget', enabled),
   setWidgetClickThrough: (through: boolean) => ipcRenderer.send('set-widget-click-through', through)
 })

@@ -17,6 +17,7 @@ electron.contextBridge.exposeInMainWorld("api", {
     electron.ipcRenderer.removeAllListeners("navigate-to");
     electron.ipcRenderer.on("navigate-to", (_, tab) => callback(tab));
   },
-  toggleWidget: (enabled) => electron.ipcRenderer.send("toggle-widget", enabled),
+  toggleHealthWidget: (enabled) => electron.ipcRenderer.send("toggle-health-widget", enabled),
+  toggleCalendarWidget: (enabled) => electron.ipcRenderer.send("toggle-calendar-widget", enabled),
   setWidgetClickThrough: (through) => electron.ipcRenderer.send("set-widget-click-through", through)
 });
