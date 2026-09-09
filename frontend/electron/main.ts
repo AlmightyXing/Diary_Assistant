@@ -9,16 +9,54 @@ function startBackend() {
   const isPackaged = app.isPackaged
   const backendExePath = isPackaged
     ? join(process.resourcesPath, 'extraResources', 'backend.exe')
-    : join(__dirname, '../../backend/dist/backend.exe') // wait, for dev we usually start it manually. We can just check if it exists.
+    : join(__dirname, '../../backend/dist/backend.exe')
     
   if (fsSync.existsSync(backendExePath)) {
     console.log('Starting backend: ', backendExePath)
-    backendProcess = spawn(backendExePath, [], { stdio: 'inherit' })
+    
+    // 配置 logs 文件夹路径
+    const logsFolder = isPackaged
+      ? join(require('path').dirname(app.getPath('exe')), 'logs')
+      : join(__dirname, '../../logs')
+      
+    if (!fsSync.existsSync(logsFolder)) {
+      fsSync.mkdirSync(logsFolder, { recursive: true })
+    }
+    
+    const logFile = join(logsFolder, 'backend.log')
+    const logStream = fsSync.createWriteStream(logFile, { flags: 'a' })
+    const timestamp = new Date().toISOString()
+    logStream.write(`
+
+--- Backend Started at ${timestamp} ---
+`)
+
+    backendProcess = spawn(backendExePath, [], { 
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'] 
+    })
+    
+    if (backendProcess.stdout) {
+      backendProcess.stdout.pipe(logStream)
+    }
+    if (backendProcess.stderr) {
+      backendProcess.stderr.pipe(logStream)
+    }
+    
+    backendProcess.on('error', (err) => {
+      logStream.write(`
+Failed to start backend: ${err.message}
+`)
+    })
+    backendProcess.on('close', (code) => {
+      logStream.write(`
+Backend process exited with code ${code}
+`)
+    })
   } else {
     console.warn('Backend executable not found at: ', backendExePath)
   }
 }
-
 app.on('will-quit', () => {
   if (backendProcess) {
     try {

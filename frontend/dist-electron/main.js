@@ -28,7 +28,37 @@ function startBackend() {
   const backendExePath = isPackaged2 ? path.join(process.resourcesPath, "extraResources", "backend.exe") : path.join(__dirname, "../../backend/dist/backend.exe");
   if (fsSync__namespace.existsSync(backendExePath)) {
     console.log("Starting backend: ", backendExePath);
-    backendProcess = child_process.spawn(backendExePath, [], { stdio: "inherit" });
+    const logsFolder = isPackaged2 ? path.join(require("path").dirname(electron.app.getPath("exe")), "logs") : path.join(__dirname, "../../logs");
+    if (!fsSync__namespace.existsSync(logsFolder)) {
+      fsSync__namespace.mkdirSync(logsFolder, { recursive: true });
+    }
+    const logFile = path.join(logsFolder, "backend.log");
+    const logStream = fsSync__namespace.createWriteStream(logFile, { flags: "a" });
+    const timestamp = (/* @__PURE__ */ new Date()).toISOString();
+    logStream.write(`
+
+--- Backend Started at ${timestamp} ---
+`);
+    backendProcess = child_process.spawn(backendExePath, [], {
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    if (backendProcess.stdout) {
+      backendProcess.stdout.pipe(logStream);
+    }
+    if (backendProcess.stderr) {
+      backendProcess.stderr.pipe(logStream);
+    }
+    backendProcess.on("error", (err) => {
+      logStream.write(`
+Failed to start backend: ${err.message}
+`);
+    });
+    backendProcess.on("close", (code) => {
+      logStream.write(`
+Backend process exited with code ${code}
+`);
+    });
   } else {
     console.warn("Backend executable not found at: ", backendExePath);
   }

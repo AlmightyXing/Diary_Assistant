@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "prepare": "husky"
+    "prepare": "husky",
+    "package": "electron-builder --win --dir && node -e \"const fs=require('fs'); fs.rmSync('dist_electron/DiaryAssistant', {recursive:true, force:true}); fs.renameSync('dist_electron/win-unpacked', 'dist_electron/DiaryAssistant'); console.log('\\n\\n✅ 打包完成！程序已输出至: dist_electron/DiaryAssistant');\""
   },
   "dependencies": {
     "react": "^18.2.0",
@@ -33,7 +34,8 @@
       "output": "dist_electron"
     },
     "win": {
-      "target": "dir"
+      "target": "dir",
+      "icon": "build/icon.ico"
     },
     "extraResources": [
       {
