@@ -16,36 +16,56 @@ Diary Assistant 是一款结合了**AI智能日记生成**、**健康护航**以
     *   调用大语言模型（支持 OpenAI / DeepSeek / 兼容接口），自动为你撰写风格多样的复盘日记。
 *   **🔒 完全的本地隐私保护**
     *   所有日常数据、模板、数据库及 API Key 均存储在本地运行目录的 `data/` 文件夹中。
-    *   代码纯净开源，绝不包含任何隐私数据追踪或强制云同步。
+    *   纯净本地化运行，绝不包含任何隐私数据追踪或强制云同步。
 
-## 🛠️ 技术栈 (Tech Stack)
+---
 
-*   **前端 / 客户端 (Frontend)**
-    *   [Electron](https://www.electronjs.org/) - 桌面应用框架
-    *   [React](https://reactjs.org/) & [TypeScript](https://www.typescriptlang.org/) - 用户界面
-    *   [Vite](https://vitejs.dev/) - 极速构建工具
-*   **后端服务 (Backend)**
-    *   [Python](https://www.python.org/) & [FastAPI](https://fastapi.tiangolo.com/) - 提供系统级 API 与 AI 调度逻辑
-    *   [SQLite3](https://www.sqlite.org/) - 轻量级本地数据库（用于白名单与应用统计）
-    *   [PyInstaller](https://pyinstaller.org/) - 将 Python 后端打包为独立 `.exe`
+## 🚀 快速开始 (开箱即用)
 
-## 🚀 快速开始 (Getting Started)
+对于普通用户，无需配置任何复杂的代码环境，只需下载压缩包即可直接使用：
 
-### 环境依赖
+1. **下载程序**：前往项目的 [Releases](#) 页面，下载最新版本的 `DiaryAssistant-vX.X.zip` 压缩包。
+2. **解压运行**：将压缩包解压到你喜欢的路径下，双击运行其中的 `DiaryAs.exe` 即可启动应用。
+3. **初始配置**：
+   * 第一次启动应用时，程序会在同级目录下自动生成一个 `data/` 文件夹（用于安全地存放你的所有数据）。
+   * 前往应用左下角的**设置 (Settings)** 页面，填入你的大模型 API 密钥（目前仅支持 DeepSeek API Key），保存后即可解锁 AI 日记生成功能。
+
+## 📖 使用说明
+
+* **排布日程**：在【今日日程】中点击添加按钮，填写待办事项的时间、重要性及描述。完成任务后，点击该日程即可快速填写“结束感想”。
+* **健康伴护**：点击侧边栏的【健康伴护】，你可以设置各类提醒的间隔时间（久坐、护眼、运动），并在下方勾选你工作时常驻的“白名单软件”。只有在专注白名单软件时，才会为你累加有效工作时长。
+* **生成日记**：一天结束前，进入【日记复盘】页面，选择当日心情与天气，一键让 AI 结合你今天的进度与感想为你生成一篇文辞优美的专属日记。
+
+## 🛡️ 隐私与数据说明
+
+本项目采用“本地优先”策略，严格保护用户隐私：
+* 所有日常数据、后台生成的 SQLite 数据库（记录应用使用时长）均**保存在本地的 `data/` 文件夹中**。
+* 除了在生成日记时会向你配置的 AI 大模型接口发送必要的 prompt 外，应用**不会产生任何其他的网络请求，也绝对没有任何云端收集行为**。
+
+---
+
+## 🛠️ 开发者指南 (二次开发与部署)
+
+如果你是开发者，想要深入拆解、学习或是自定义此项目，请参考以下指南进行环境配置与依赖安装。
+
+### 技术栈
+* **客户端**：[Electron](https://www.electronjs.org/) + [React](https://reactjs.org/) + [Vite](https://vitejs.dev/) + TypeScript
+* **后端**：[Python](https://www.python.org/) + [FastAPI](https://fastapi.tiangolo.com/) + SQLite3
+
+### 1. 环境依赖
 *   Node.js (建议 v18+)
 *   Python 3.10+
 *   npm
 
-### 1. 配置后台环境
-在项目根目录下或 `backend/` 目录下创建 `.env` 文件，填入你的模型 API 密钥：
+### 2. 配置开发环境密钥
+在项目根目录或 `backend/` 目录下创建 `.env` 文件，填入模型 API 密钥（开发调试用）：
 ```env
 OPENAI_API_KEY=your_openai_api_key_here
 # 或者
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
-# 也可以在客户端 UI 的设置页面中直接填写
 ```
 
-### 2. 依赖安装
+### 3. 依赖安装
 ```bash
 # 1. 安装前端及 Electron 依赖
 cd frontend
@@ -56,29 +76,16 @@ cd ../backend
 pip install -r requirements.txt
 ```
 
-### 3. 一键开发运行
-回到根目录，直接运行一键启动脚本：
+### 4. 一键开发运行
+回到项目根目录，直接运行启动脚本（该脚本会在后台智能双开前端与 Python 服务）：
 ```bash
 ./start.bat
 ```
-*(在开发模式下，Electron 前端主进程会自动调用 Python 源文件运行后端，无需手动双开)*
 
-## 📦 生产打包 (Packaging)
-
-如果您想将应用打包为独立的免安装可执行程序：
-
+### 5. 生产打包
+若想打包生成新的 `.exe` 分发版本：
 ```bash
 cd frontend
 npm run package
 ```
-打包产物将生成在 `frontend/dist_electron/` 下（例如 `DiaryAs.exe`）。
-首次运行打包后的程序时，系统会自动在 `.exe` 同级目录下生成用于存放你个人数据的 `data/` 文件夹。
-
-## 🛡️ 隐私与数据说明
-本项目采用“本地优先”策略，严格保护用户隐私：
-*   所有代码上传与版本控制已被 `.gitignore` 保护，排除 `.env` 文件及包含真实数据的 `data/` 目录和 `*.db` 数据库。
-*   打包生成的发行版**绝对纯净**，不会带入开发者的任何私有数据。
-
----
-
-*“用更少的精力，过更自律的生活。你的智能日记小助手，每一天都在记录更好的你。”*
+打包后的独立版本将生成在 `frontend/dist_electron/` 文件夹中，打包过程已配置过滤规则，绝对不会混入开发者的任何 `.env` 或 `data/` 隐私文件。
