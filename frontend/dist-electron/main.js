@@ -25,6 +25,33 @@ const fsSync__namespace = /* @__PURE__ */ _interopNamespaceDefault(fsSync);
 let backendProcess = null;
 function startBackend() {
   const isPackaged2 = electron.app.isPackaged;
+  if (!isPackaged2) {
+    const pythonExe = path.join(__dirname, "../../backend/venv/Scripts/python.exe");
+    const mainPy = path.join(__dirname, "../../backend/main.py");
+    console.log("Starting backend via python source: ", mainPy);
+    const logsFolder = path.join(__dirname, "../../logs");
+    if (!fsSync__namespace.existsSync(logsFolder)) {
+      fsSync__namespace.mkdirSync(logsFolder, { recursive: true });
+    }
+    const logFile = path.join(logsFolder, "backend.log");
+    const logStream = fsSync__namespace.createWriteStream(logFile, { flags: "a" });
+    const timestamp = (/* @__PURE__ */ new Date()).toISOString();
+    logStream.write(`
+
+--- Backend Started at ${timestamp} (DEV MODE) ---
+`);
+    backendProcess = child_process.spawn(pythonExe, [mainPy], {
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    if (backendProcess.stdout) {
+      backendProcess.stdout.on("data", (data) => logStream.write(data));
+    }
+    if (backendProcess.stderr) {
+      backendProcess.stderr.on("data", (data) => logStream.write(data));
+    }
+    return;
+  }
   const backendExePath = isPackaged2 ? path.join(process.resourcesPath, "extraResources", "backend.exe") : path.join(__dirname, "../../backend/dist/backend.exe");
   if (fsSync__namespace.existsSync(backendExePath)) {
     console.log("Starting backend: ", backendExePath);
@@ -367,7 +394,7 @@ function setupTray() {
 let flashWin = null;
 let notifiedEye = false;
 let prevPhase = null;
-function triggerFlashAndBeep() {
+function triggerFlashAndBeep(color = "green") {
   if (flashWin && !flashWin.isDestroyed()) return;
   const primaryDisplay = electron.screen.getPrimaryDisplay();
   const { x, y, width, height } = primaryDisplay.bounds;
@@ -386,6 +413,7 @@ function triggerFlashAndBeep() {
   });
   flashWin.setIgnoreMouseEvents(true, { forward: true });
   flashWin.setAlwaysOnTop(true, "screen-saver", 1);
+  const rgb = color === "yellow" ? "255, 255, 0" : "0, 255, 0";
   const html = `
     <html>
       <head>
@@ -393,12 +421,12 @@ function triggerFlashAndBeep() {
           body {
             margin: 0; padding: 0; overflow: hidden; background: transparent;
             box-sizing: border-box;
-            border: 20px solid rgba(0, 255, 0, 0);
+            border: 20px solid rgba(${rgb}, 0);
             animation: breathe 1s infinite alternate;
           }
           @keyframes breathe {
-            0% { border-color: rgba(0, 255, 0, 0.1); box-shadow: inset 0 0 50px rgba(0, 255, 0, 0.1); }
-            100% { border-color: rgba(0, 255, 0, 0.8); box-shadow: inset 0 0 100px rgba(0, 255, 0, 0.6); }
+            0% { border-color: rgba(${rgb}, 0.1); box-shadow: inset 0 0 50px rgba(${rgb}, 0.1); }
+            100% { border-color: rgba(${rgb}, 0.8); box-shadow: inset 0 0 100px rgba(${rgb}, 0.6); }
           }
         </style>
       </head>
@@ -411,21 +439,18 @@ function triggerFlashAndBeep() {
               const gain = ctx.createGain();
               osc.connect(gain);
               gain.connect(ctx.destination);
-              osc.type = 'square';
-              osc.frequency.setValueAtTime(800, ctx.currentTime);
+              
+              // Modified to a softer sine wave chime instead of harsh square wave
+              osc.type = 'sine';
+              osc.frequency.setValueAtTime(600, ctx.currentTime);
               gain.gain.setValueAtTime(0, ctx.currentTime);
-              
-              gain.gain.setValueAtTime(0.1, ctx.currentTime + 0.1);
-              gain.gain.setValueAtTime(0, ctx.currentTime + 0.3);
-              
-              gain.gain.setValueAtTime(0.1, ctx.currentTime + 0.4);
-              gain.gain.setValueAtTime(0, ctx.currentTime + 0.6);
-              
-              gain.gain.setValueAtTime(0.1, ctx.currentTime + 0.7);
-              gain.gain.setValueAtTime(0, ctx.currentTime + 0.9);
+              gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.1);
+              gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+              gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.6);
+              gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1.2);
 
               osc.start(ctx.currentTime);
-              osc.stop(ctx.currentTime + 1.0);
+              osc.stop(ctx.currentTime + 1.3);
             } catch(e) { console.error("Audio play failed", e); }
           };
           playAlarmBeep();
@@ -443,11 +468,13 @@ function triggerFlashAndBeep() {
 }
 function handleHealthStatus(data) {
   if (prevPhase && prevPhase !== data.sedentary.phase) {
-    triggerFlashAndBeep();
+    if (prevPhase === "sedentary" && data.sedentary.phase === "exercise") {
+      triggerFlashAndBeep("yellow");
+    }
   }
   prevPhase = data.sedentary.phase;
   if (data.eye_care.time_left === 0 && !notifiedEye) {
-    triggerFlashAndBeep();
+    triggerFlashAndBeep("green");
     notifiedEye = true;
     const req = electron.net.request({
       method: "POST",

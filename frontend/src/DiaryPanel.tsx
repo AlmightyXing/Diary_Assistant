@@ -41,7 +41,7 @@ export default function DiaryPanel({ date, schedules }: { date: string, schedule
       .catch(e => console.error(e));
   }, [date]);
 
-  const scheduleText = schedules.map(s => s.title + ' (' + s.importance + ')' + (s.description ? ' - 备注: ' + s.description : '')).join('\n');
+  const scheduleText = schedules.map(s => s.title + ' (' + s.importance + ')' + (s.description ? ' - 备注: ' + s.description : '') + (s.reflection ? ' - 感想: ' + s.reflection : '')).join('\n');
   const appStatsText = appStats.map(s => s.app_name + ': ' + formatDuration(s.active_time_seconds || 0)).join('\n');
 
   const generateDraft = async () => {

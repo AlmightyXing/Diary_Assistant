@@ -47,6 +47,8 @@ interface Schedule {
   type?: string; // 工作 | 学习 | 娱乐 | 运动 | 其他
   isGenerated?: boolean;
   is_completed?: boolean;
+  time?: string;
+  reflection?: string;
 }
 
 interface Template {
@@ -57,6 +59,7 @@ interface Template {
   ruleType: 'daily' | 'weekly' | 'monthly';
   ruleValue?: string;
   type?: string;
+  time?: string;
 }
 
 const SCHEDULE_TYPES = ['工作', '学习', '娱乐', '运动', '其他'];
@@ -107,10 +110,10 @@ function WhitelistRenderer() {
         </div>
       ))}
       {!isExpanded && hasMore && (
-         <Button variant="secondary" onClick={() => setIsExpanded(true)} style={{ marginTop: '0.5rem', width: '100%', display: 'block', textAlign: 'center' }}>点击查看全部</Button>
+        <Button variant="secondary" onClick={() => setIsExpanded(true)} style={{ marginTop: '0.5rem', width: '100%', display: 'block', textAlign: 'center' }}>点击查看全部</Button>
       )}
       {isExpanded && hasMore && (
-         <Button variant="secondary" onClick={() => setIsExpanded(false)} style={{ marginTop: '0.5rem', width: '100%', display: 'block', textAlign: 'center' }}>收起列表</Button>
+        <Button variant="secondary" onClick={() => setIsExpanded(false)} style={{ marginTop: '0.5rem', width: '100%', display: 'block', textAlign: 'center' }}>收起列表</Button>
       )}
     </>
   );
@@ -358,7 +361,7 @@ function CalendarView() {
       </div>
     </div>
   );
-  }
+}
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('schedules');
@@ -369,6 +372,11 @@ export default function App() {
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
   const [scheduleForm, setScheduleForm] = useState<Schedule>({ title: '', description: '', importance: '重要', type: '工作', date: new Date().toISOString().split('T')[0] });
+
+  // Reflection state
+  const [isReflectionModalOpen, setIsReflectionModalOpen] = useState(false);
+  const [reflectionSchedule, setReflectionSchedule] = useState<Schedule | null>(null);
+  const [reflectionText, setReflectionText] = useState('');
 
   // Custom Confirm Modal
   const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean, text: string, onConfirm: () => void, onCancel?: () => void }>({
@@ -700,7 +708,7 @@ export default function App() {
                   {schedules.length === 0 ? <p className="mono-text" style={{ color: 'var(--text-dim)' }}>暂无记录</p> : schedules.map(s => (
                     <div key={s.id} className={`schedule-item-tech ${s.is_completed ? 'completed' : ''}`}>
                       <div className="schedule-time-block">{s.importance.includes('事项') ? s.importance : s.importance + '事项'}</div>
-                      <div className="schedule-content">
+                      <div className="schedule-content" onClick={() => { if (s.is_completed) { setReflectionSchedule(s); setReflectionText(s.reflection || ''); setIsReflectionModalOpen(true); } }} style={{ cursor: s.is_completed ? 'pointer' : 'default' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                           <strong style={{ fontSize: '1.2rem', color: '#000' }}>{s.title}</strong>
                           {s.type && (
@@ -710,7 +718,7 @@ export default function App() {
                           )}
                         </div>
                         <div style={{ fontSize: '0.9rem', color: '#888', marginTop: '6px', whiteSpace: 'pre-wrap' }}>
-                          {s.description}
+                          {s.time ? s.time + '  ' + s.description : s.description}
                         </div>
                       </div>
                       <div className="schedule-actions">
@@ -759,7 +767,7 @@ export default function App() {
                             {renderRuleLabel(t)}
                           </span>
                         </div>
-                        <p style={{ margin: '0.5rem 0 0', color: 'var(--text-dim)' }}>{t.description}</p>
+                        <p style={{ margin: '0.5rem 0 0', color: 'var(--text-dim)' }}>{t.time ? t.time + ' [' + t.description + ']' : t.description}</p>
                       </div>
                       <div className="schedule-actions">
                         <button onClick={() => openTemplateModal(t)} title="编辑">
@@ -986,6 +994,10 @@ export default function App() {
                       {SCHEDULE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
                   </div>
+                  <div style={{ flex: 1 }}>
+                    <label className="mono-text" style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-dim)' }}>日程时间</label>
+                    <input type="time" value={scheduleForm.time || ''} onChange={e => setScheduleForm({ ...scheduleForm, time: e.target.value })} style={{ width: '100%', marginTop: '0.25rem', fontFamily: 'var(--font-mono)', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} />
+                  </div>
                 </div>
                 <div>
                   <label className="mono-text" style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-dim)' }}>标题</label>
@@ -1000,6 +1012,32 @@ export default function App() {
               <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
                 <Button variant="secondary" onClick={closeScheduleModal}>取消</Button>
                 <Button variant="primary" onClick={handleSaveSchedule}>保存</Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {isReflectionModalOpen && reflectionSchedule && (
+          <div className="modal-overlay">
+            <div className="modal-content" style={{ width: '400px' }}>
+              <h3 className="tech-heading" style={{ marginBottom: '1.5rem', fontSize: '1.1rem' }}>
+                请输入日程“{reflectionSchedule.title}”结束感想
+              </h3>
+              <textarea
+                value={reflectionText}
+                onChange={e => setReflectionText(e.target.value)}
+                style={{ width: '100%', height: '150px', marginBottom: '1rem', resize: 'vertical' }}
+                placeholder="输入内容..."
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                <Button variant="secondary" onClick={() => setIsReflectionModalOpen(false)}>取消</Button>
+                <Button variant="primary" onClick={async () => {
+                  const updated = { ...reflectionSchedule, reflection: reflectionText };
+                  await window.api.updateSchedule(updated);
+                  setIsReflectionModalOpen(false);
+                  // @ts-ignore
+                  if (typeof loadSchedules !== 'undefined') loadSchedules(date);
+                }}>保存</Button>
               </div>
             </div>
           </div>
@@ -1093,6 +1131,10 @@ export default function App() {
                     <select value={templateForm.type || '工作'} onChange={e => setTemplateForm({ ...templateForm, type: e.target.value })} style={{ width: '100%', marginTop: '0.25rem' }}>
                       {SCHEDULE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label className="mono-text" style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-dim)' }}>日程时间</label>
+                    <input type="time" value={templateForm.time || ''} onChange={e => setTemplateForm({ ...templateForm, time: e.target.value })} style={{ width: '100%', marginTop: '0.25rem', fontFamily: 'var(--font-mono)', padding: '0.5rem', border: '1px solid var(--border-color)', borderRadius: '4px' }} />
                   </div>
                 </div>
                 <div>
