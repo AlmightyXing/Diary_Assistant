@@ -423,12 +423,13 @@ def generate_diary(req: DiaryDraftRequest):
     try:
         api_key = req.api_key or os.environ.get("OPENAI_API_KEY") or os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("API_KEY")
         if api_key:
+            api_key = api_key.strip()
             base_url = os.environ.get("BASE_URL")
             model_name = os.environ.get("LLM_MODEL", "deepseek-chat")
             
             if not base_url:
                 if model_name.startswith("deepseek"):
-                    base_url = "https://api.deepseek.com/v1"
+                    base_url = "https://api.deepseek.com"
                 else:
                     base_url = "https://api.openai.com/v1"
 

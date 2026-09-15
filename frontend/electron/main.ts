@@ -253,10 +253,10 @@ let calendarWidgetWin: BrowserWindow | null = null
 function saveWidgetPositions() {
   const pos: any = {};
   if (widgetWin && !widgetWin.isDestroyed()) {
-    pos.health = widgetWin.getPosition();
+    pos.health = widgetWin.getBounds();
   }
   if (calendarWidgetWin && !calendarWidgetWin.isDestroyed()) {
-    pos.calendar = calendarWidgetWin.getPosition();
+    pos.calendar = calendarWidgetWin.getBounds();
   }
   try {
     const raw = fsSync.readFileSync(positionsPath, 'utf-8');
@@ -294,7 +294,7 @@ function createWidgetWindow() {
 
   const pos = loadWidgetPositions();
   if (pos.health) {
-    widgetWin.setPosition(pos.health[0], pos.health[1]);
+    widgetWin.setBounds(pos.health);
   } else {
     const primaryDisplay = screen.getPrimaryDisplay();
     const { width } = primaryDisplay.workAreaSize;
@@ -333,7 +333,7 @@ function createCalendarWidgetWindow() {
 
   const pos = loadWidgetPositions();
   if (pos.calendar) {
-    calendarWidgetWin.setPosition(pos.calendar[0], pos.calendar[1]);
+    calendarWidgetWin.setBounds(pos.calendar);
   } else {
     const primaryDisplay = screen.getPrimaryDisplay();
     const { width } = primaryDisplay.workAreaSize;

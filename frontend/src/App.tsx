@@ -878,12 +878,13 @@ export default function App() {
                   <select
                     id="newAppName"
                     style={{ flex: 1, padding: '0.5rem' }}
-                    onFocus={async () => {
+                    onClick={async (e) => {
+                      const select = e.currentTarget;
+                      if (select.children.length > 1) return; // already loaded
                       try {
+                        select.innerHTML = '<option value="">-- 加载中... --</option>';
                         const res = await fetch(API_BASE_URL + '/installed-apps');
                         const data = await res.json();
-                        const select = document.getElementById('newAppName') as HTMLSelectElement;
-                        const currentVal = select.value;
                         select.innerHTML = '<option value="">-- 选择正在运行的应用 --</option>';
                         data.running_apps.forEach((app: string) => {
                           const opt = document.createElement('option');
@@ -891,11 +892,9 @@ export default function App() {
                           opt.textContent = app;
                           select.appendChild(opt);
                         });
-                        if (data.running_apps.includes(currentVal)) {
-                          select.value = currentVal;
-                        }
                       } catch (e) {
                         console.error(e);
+                        select.innerHTML = '<option value="">-- 加载失败 --</option>';
                       }
                     }}
                   >
